@@ -46,9 +46,14 @@ export function processEmailBody(
       .split("\n")
       .map((line) => (line.trim() ? `<div>${line}</div>` : "<br>"))
       .join("");
+    // Style all <a> tags in signature with underline + blue color (inline, so email clients keep it)
+    const sigLinesWithStyledLinks = sigLines.replace(
+      /<a\s+([^>]*?)>/gi,
+      '<a style="text-decoration:underline;color:#2563eb;" $1>'
+    );
     signatureBlock = `<div style="margin-top:24px;border-top:1px solid #eee;padding-top:12px;font-size:14px;color:#555;">
 ${signature.imageUrl ? `<div style="margin-bottom:12px;"><img src="${signature.imageUrl}" alt="" style="max-width:200px;height:auto;display:block;" /></div>` : ""}
-${sigLines}
+${sigLinesWithStyledLinks}
 </div>`;
   }
 
