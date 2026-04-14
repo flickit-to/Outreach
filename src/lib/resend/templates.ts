@@ -52,7 +52,7 @@ export function processEmailBody(
       '<a style="text-decoration:underline;color:#2563eb;" $1>'
     );
     signatureBlock = `<div style="margin-top:24px;border-top:1px solid #eee;padding-top:12px;font-size:14px;color:#555;">
-${signature.imageUrl ? `<div style="margin-bottom:12px;"><img src="${signature.imageUrl}" alt="" style="max-width:200px;height:auto;display:block;" /></div>` : ""}
+${signature.imageUrl ? `<div style="margin-bottom:12px;"><img src="${signature.imageUrl}" alt="" width="80" height="80" style="width:80px;height:80px;object-fit:cover;display:block;border-radius:4px;" /></div>` : ""}
 ${sigLinesWithStyledLinks}
 </div>`;
   }
