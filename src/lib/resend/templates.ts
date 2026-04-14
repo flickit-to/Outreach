@@ -47,7 +47,7 @@ export function processEmailBody(
       .map((line) => (line.trim() ? `<div>${line}</div>` : "<br>"))
       .join("");
     signatureBlock = `<div style="margin-top:24px;border-top:1px solid #eee;padding-top:12px;font-size:14px;color:#555;">
-${signature.imageUrl ? `<img src="${signature.imageUrl}" alt="" style="max-width:120px;margin-bottom:8px;" />` : ""}
+${signature.imageUrl ? `<div style="margin-bottom:12px;"><img src="${signature.imageUrl}" alt="" style="max-width:200px;height:auto;display:block;" /></div>` : ""}
 ${sigLines}
 </div>`;
   }

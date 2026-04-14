@@ -154,12 +154,25 @@ export function SettingsForm({
 
     const { data: { publicUrl } } = supabase.storage.from("signatures").getPublicUrl(path);
     setSignatureImageUrl(publicUrl);
+
+    // Auto-save the image URL so it persists even if user doesn't click Save
+    await supabase.from("settings").upsert(
+      { user_id: userId, signature_image_url: publicUrl },
+      { onConflict: "user_id" }
+    );
+
     setUploadingImage(false);
-    toast({ title: "Image uploaded" });
+    toast({ title: "Image uploaded & saved" });
   }
 
-  function removeSignatureImage() {
+  async function removeSignatureImage() {
     setSignatureImageUrl("");
+    const supabase = createClient();
+    await supabase.from("settings").upsert(
+      { user_id: userId, signature_image_url: null },
+      { onConflict: "user_id" }
+    );
+    toast({ title: "Image removed" });
   }
 
   async function saveSignature() {
