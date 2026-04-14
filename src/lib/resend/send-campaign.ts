@@ -159,7 +159,11 @@ export async function sendCampaign(
         campaign.body,
         contact,
         sendRecord.id,
-        appUrl
+        appUrl,
+        {
+          html: settings.signature_html || null,
+          imageUrl: settings.signature_image_url || null,
+        }
       );
       const subjectText = variant === "B" && campaign.subject_b
         ? campaign.subject_b

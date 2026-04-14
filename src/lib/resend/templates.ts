@@ -13,11 +13,17 @@ function replaceVars(text: string, contact: Contact): string {
     .replace(/\{\{email\}\}/g, contact.email);
 }
 
+export interface SignatureInput {
+  html: string | null;
+  imageUrl: string | null;
+}
+
 export function processEmailBody(
   body: string,
   contact: Contact,
   sendId: string,
-  appUrl: string
+  appUrl: string,
+  signature?: SignatureInput
 ): string {
   const processed = replaceVars(body, contact);
 
@@ -32,11 +38,26 @@ export function processEmailBody(
     .map((line) => (line.trim() ? `<p>${line}</p>` : "<br>"))
     .join("");
 
+  // Build signature HTML if provided
+  let signatureBlock = "";
+  if (signature && (signature.html || signature.imageUrl)) {
+    const sigHtml = signature.html ? replaceVars(signature.html, contact) : "";
+    const sigLines = sigHtml
+      .split("\n")
+      .map((line) => (line.trim() ? `<div>${line}</div>` : "<br>"))
+      .join("");
+    signatureBlock = `<div style="margin-top:24px;border-top:1px solid #eee;padding-top:12px;font-size:14px;color:#555;">
+${signature.imageUrl ? `<img src="${signature.imageUrl}" alt="" style="max-width:120px;margin-bottom:8px;" />` : ""}
+${sigLines}
+</div>`;
+  }
+
   let html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
 <body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
 ${htmlBody}
+${signatureBlock}
 ${getTrackingPixelHtml(sendId, appUrl)}
 </body>
 </html>`;

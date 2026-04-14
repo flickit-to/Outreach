@@ -31,7 +31,10 @@ export const campaignSchema = z.object({
   subject: z.string().min(1, "Subject is required").max(200, "Subject too long"),
   subject_b: z.string().max(200).optional(),
   body: z.string().min(1, "Email body is required"),
-  scheduled_at: z.string().optional(),
+  scheduled_at: z.string().optional().refine(
+    (v) => !v || new Date(v).getTime() >= Date.now() - 60_000,
+    { message: "Scheduled time cannot be in the past" }
+  ),
   from_email_id: z.string().optional(), // null = auto-rotate
   list_id: z.string().min(1, "Select a list"),
 });
@@ -46,6 +49,8 @@ export const settingsSchema = z.object({
   from_email: z.string().email("Invalid email address"),
   from_name: z.string().min(1, "Name is required"),
   daily_send_limit: z.number().min(1).max(100),
+  signature_html: z.string().max(10000).optional().nullable(),
+  signature_image_url: z.string().optional().nullable(),
 });
 
 export const importRowSchema = z.object({

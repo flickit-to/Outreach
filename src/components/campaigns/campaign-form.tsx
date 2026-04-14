@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +29,17 @@ export function CampaignForm({
   const [fromEmailId, setFromEmailId] = useState<string>("");
   const [abEnabled, setAbEnabled] = useState(false);
   const [timezone, setTimezone] = useState(getBrowserTimezone);
+  const [minDateTime, setMinDateTime] = useState("");
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      setMinDateTime(now.toISOString().slice(0, 16));
+    };
+    update();
+    const id = setInterval(update, 60_000);
+    return () => clearInterval(id);
+  }, []);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -272,7 +283,7 @@ export function CampaignForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scheduled_at">Send Date & Time</Label>
-                <Input id="scheduled_at" type="datetime-local" {...register("scheduled_at")} />
+                <Input id="scheduled_at" type="datetime-local" min={minDateTime} {...register("scheduled_at")} />
                 <p className="text-xs text-muted-foreground">
                   Time interpreted in {timezone}
                 </p>

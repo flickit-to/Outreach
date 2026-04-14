@@ -5,6 +5,7 @@ import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { BestTimesCard } from "@/components/dashboard/best-times-card";
 import { TimeToOpenSummary } from "@/components/dashboard/time-to-open-summary";
 import { DailyDigest } from "@/components/dashboard/daily-digest";
+import { CompanyAnalyticsCard, type CompanyRow } from "@/components/dashboard/company-analytics-card";
 import { getBestSendTimes } from "@/lib/analytics/best-time";
 import { computeTimeToOpen } from "@/lib/analytics/time-to-open";
 
@@ -25,7 +26,7 @@ export default async function DashboardPage() {
   // Send stats
   const { data: allSends } = await supabase
     .from("sends")
-    .select("status, sent_at, opened_at");
+    .select("status, sent_at, opened_at, contact_id");
 
   const totalSent = allSends?.filter((s) => !["pending", "failed"].includes(s.status)).length || 0;
   const totalDelivered = allSends?.filter((s) => ["delivered", "opened", "clicked", "replied"].includes(s.status)).length || 0;
@@ -189,6 +190,43 @@ export default async function DashboardPage() {
     seenContactIds.add(contact.id);
   }
 
+  // Company analytics aggregation
+  const { data: contactsForCompany } = await supabase
+    .from("contacts")
+    .select("id, company");
+
+  const companyByContactId = new Map<string, string>();
+  const companyRowsMap = new Map<string, CompanyRow>();
+  for (const c of contactsForCompany || []) {
+    const key = (c.company ?? "").trim();
+    if (!key) continue;
+    companyByContactId.set(c.id, key);
+    if (!companyRowsMap.has(key)) {
+      companyRowsMap.set(key, { company: key, contacts: 0, sent: 0, opened: 0, clicked: 0, openRate: 0, clickRate: 0 });
+    }
+    companyRowsMap.get(key)!.contacts++;
+  }
+
+  for (const s of allSends || []) {
+    const company = companyByContactId.get((s as any).contact_id);
+    if (!company) continue;
+    const row = companyRowsMap.get(company)!;
+    if (!["pending", "failed"].includes(s.status)) row.sent++;
+    if (["opened", "clicked", "replied"].includes(s.status)) row.opened++;
+    if (s.status === "clicked") row.clicked++;
+  }
+
+  const companyRows: CompanyRow[] = Array.from(companyRowsMap.values())
+    .map((r) => ({
+      ...r,
+      openRate: r.sent > 0 ? Math.round((r.opened / r.sent) * 100) : 0,
+      clickRate: r.sent > 0 ? Math.round((r.clicked / r.sent) * 100) : 0,
+    }))
+    .sort((a, b) => b.openRate - a.openRate || b.sent - a.sent)
+    .slice(0, 10);
+
+  const companiesTargeted = companyRowsMap.size;
+
   // Upcoming campaigns
   const { data: upcoming } = await supabase
     .from("campaigns")
@@ -245,6 +283,8 @@ export default async function DashboardPage() {
           totalOpens={timeToOpen.totalOpens}
         />
       </div>
+
+      <CompanyAnalyticsCard companiesTargeted={companiesTargeted} rows={companyRows} />
     </div>
   );
 }

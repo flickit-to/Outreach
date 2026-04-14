@@ -103,6 +103,8 @@ export interface Settings {
   from_email: string | null;
   from_name: string | null;
   daily_send_limit: number;
+  signature_html: string | null;
+  signature_image_url: string | null;
   created_at: string;
   updated_at: string;
 }

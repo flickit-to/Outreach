@@ -7,6 +7,7 @@ export async function GET(
 ) {
   const { sendId } = params;
   const url = request.nextUrl.searchParams.get("url");
+  const linkType = request.nextUrl.searchParams.get("t");
 
   // Validate URL to prevent open redirect
   if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
@@ -37,7 +38,7 @@ export async function GET(
       await supabase.from("events").insert({
         send_id: sendId,
         type: "clicked",
-        metadata: { url },
+        metadata: { url, ...(linkType ? { linkType } : {}) },
         ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "",
         user_agent: request.headers.get("user-agent") || "",
       });

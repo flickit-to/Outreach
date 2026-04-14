@@ -10,10 +10,11 @@ import type { Settings, SenderEmail } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Mail } from "lucide-react";
+import { Plus, Trash2, Mail, X, PenTool } from "lucide-react";
 
 export function SettingsForm({
   initialData,
@@ -29,6 +30,9 @@ export function SettingsForm({
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [addingEmail, setAddingEmail] = useState(false);
+  const [signatureHtml, setSignatureHtml] = useState(initialData?.signature_html || "");
+  const [signatureImageUrl, setSignatureImageUrl] = useState(initialData?.signature_image_url || "");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -43,6 +47,8 @@ export function SettingsForm({
       from_email: initialData?.from_email || "",
       from_name: initialData?.from_name || "",
       daily_send_limit: initialData?.daily_send_limit || 20,
+      signature_html: initialData?.signature_html || "",
+      signature_image_url: initialData?.signature_image_url || "",
     },
   });
 
@@ -54,6 +60,8 @@ export function SettingsForm({
       {
         user_id: userId,
         ...data,
+        signature_html: signatureHtml || null,
+        signature_image_url: signatureImageUrl || null,
       },
       { onConflict: "user_id" }
     );
@@ -120,6 +128,57 @@ export function SettingsForm({
     router.refresh();
   }
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Image must be less than 2MB", variant: "destructive" });
+      return;
+    }
+
+    setUploadingImage(true);
+    const supabase = createClient();
+    const ext = file.name.split(".").pop() || "png";
+    const path = `${userId}/signature-${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("signatures")
+      .upload(path, file, { upsert: true, contentType: file.type });
+
+    if (uploadError) {
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+      setUploadingImage(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from("signatures").getPublicUrl(path);
+    setSignatureImageUrl(publicUrl);
+    setUploadingImage(false);
+    toast({ title: "Image uploaded" });
+  }
+
+  function removeSignatureImage() {
+    setSignatureImageUrl("");
+  }
+
+  async function saveSignature() {
+    const supabase = createClient();
+    const { error } = await supabase.from("settings").upsert(
+      {
+        user_id: userId,
+        signature_html: signatureHtml || null,
+        signature_image_url: signatureImageUrl || null,
+      },
+      { onConflict: "user_id" }
+    );
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Signature saved" });
+  }
+
   return (
     <div className="space-y-6">
       {/* API & General Settings */}
@@ -184,6 +243,83 @@ export function SettingsForm({
               {loading ? "Saving..." : "Save Settings"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Email Signature */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PenTool className="h-5 w-5" />
+            Email Signature
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Appended to every email. Supports HTML and personalization variables ({"{{first_name}}"}, {"{{company}}"}, etc.). Links are automatically tracked.
+          </p>
+
+          <div className="space-y-2">
+            <Label>Signature Image (optional)</Label>
+            {signatureImageUrl ? (
+              <div className="flex items-center gap-3 p-3 border rounded-md">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={signatureImageUrl} alt="Signature" className="max-h-16 rounded" />
+                <Button type="button" variant="ghost" size="sm" onClick={removeSignatureImage}>
+                  <X className="h-4 w-4 mr-1" />
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  id="signature-image"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                />
+                {uploadingImage && <span className="text-xs text-muted-foreground">Uploading...</span>}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">Max 2MB. Recommended: 400x100px logo or photo.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="signature_html">Signature (HTML)</Label>
+            <Textarea
+              id="signature_html"
+              value={signatureHtml}
+              onChange={(e) => setSignatureHtml(e.target.value)}
+              rows={6}
+              placeholder={`Best,\nRyan Sri\nCEO at KlickFlow\n<a href="https://linkedin.com/in/yourhandle">LinkedIn</a>`}
+            />
+            <p className="text-xs text-muted-foreground">
+              You can use HTML tags like &lt;a href=&quot;...&quot;&gt; for links. LinkedIn clicks are tracked specifically.
+            </p>
+          </div>
+
+          {(signatureHtml || signatureImageUrl) && (
+            <div className="space-y-2">
+              <Label>Preview</Label>
+              <div className="p-4 border rounded-md bg-muted/30 text-sm">
+                {signatureImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={signatureImageUrl} alt="Signature" style={{ maxWidth: "120px", marginBottom: "8px" }} />
+                )}
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: signatureHtml
+                      .split("\n")
+                      .map((l) => (l.trim() ? `<div>${l}</div>` : "<br>"))
+                      .join(""),
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          <Button type="button" onClick={saveSignature}>Save Signature</Button>
         </CardContent>
       </Card>
 
