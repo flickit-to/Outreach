@@ -21,7 +21,13 @@ export function processEmailBody(
 ): string {
   const processed = replaceVars(body, contact);
 
-  const htmlBody = processed
+  // Auto-link plain URLs in the body so they can be click-tracked
+  const autoLinked = processed.replace(
+    /(?<!["'>])(https?:\/\/[^\s<>"']+)/g,
+    '<a href="$1">$1</a>'
+  );
+
+  const htmlBody = autoLinked
     .split("\n")
     .map((line) => (line.trim() ? `<p>${line}</p>` : "<br>"))
     .join("");
