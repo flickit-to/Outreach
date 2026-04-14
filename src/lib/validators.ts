@@ -34,6 +34,7 @@ export const campaignSchema = z.object({
   scheduled_at: z.string().optional(),
   from_email_id: z.string().optional(), // null = auto-rotate
   list_id: z.string().min(1, "Select a list"),
+  send_days: z.array(z.number().min(0).max(6)).optional(),
 });
 
 export const senderEmailSchema = z.object({

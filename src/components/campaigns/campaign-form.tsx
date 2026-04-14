@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/timezone";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { SendDaysPicker } from "./send-days-picker";
 
 export function CampaignForm({
   lists,
@@ -31,6 +32,7 @@ export function CampaignForm({
   const [abEnabled, setAbEnabled] = useState(false);
   const [timezone, setTimezone] = useState(getBrowserTimezone);
   const [scheduledAt, setScheduledAt] = useState("");
+  const [sendDays, setSendDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -64,6 +66,7 @@ export function CampaignForm({
         body: data.body,
         from_email_id: fromEmailId || null,
         list_id: data.list_id,
+        send_days: sendDays,
         status: "scheduled",
         scheduled_at: sendNow
           ? new Date().toISOString()
@@ -248,6 +251,14 @@ export function CampaignForm({
               <input type="radio" checked={!sendNow} onChange={() => setSendNow(false)} className="h-4 w-4" />
               <span className="text-sm">Schedule for Later</span>
             </label>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <Label>Send Days</Label>
+            <SendDaysPicker value={sendDays} onChange={setSendDays} />
+            <p className="text-xs text-muted-foreground">
+              Campaign sends only on selected days. Default: Monday–Friday.
+            </p>
           </div>
           {!sendNow && (
             <div className="space-y-4">

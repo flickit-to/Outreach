@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/timezone";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { SendDaysPicker } from "./send-days-picker";
 
 export function CampaignEditForm({
   campaign,
@@ -29,6 +30,7 @@ export function CampaignEditForm({
   const [fromEmailId, setFromEmailId] = useState<string>(campaign.from_email_id || "");
   const [abEnabled, setAbEnabled] = useState(!!campaign.subject_b);
   const [timezone, setTimezone] = useState(getBrowserTimezone);
+  const [sendDays, setSendDays] = useState<number[]>(campaign.send_days || [1, 2, 3, 4, 5]);
   const [scheduledAt, setScheduledAt] = useState(
     campaign.scheduled_at
       ? (() => {
@@ -74,6 +76,7 @@ export function CampaignEditForm({
         body: data.body,
         from_email_id: fromEmailId || null,
         list_id: data.list_id,
+        send_days: sendDays,
         scheduled_at: scheduledAt ? zonedTimeToUtc(scheduledAt, timezone) : null,
       })
       .eq("id", campaign.id);
@@ -226,6 +229,13 @@ export function CampaignEditForm({
                 />
                 <p className="text-xs text-muted-foreground">
                   Time interpreted in {timezone}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Send Days</Label>
+                <SendDaysPicker value={sendDays} onChange={setSendDays} />
+                <p className="text-xs text-muted-foreground">
+                  Campaign sends only on selected days.
                 </p>
               </div>
             </div>

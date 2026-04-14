@@ -32,6 +32,7 @@ export interface Campaign {
   sent_at: string | null;
   from_email_id: string | null;
   list_id: string | null;
+  send_days: number[];
   status: CampaignStatus;
   created_at: string;
   updated_at: string;

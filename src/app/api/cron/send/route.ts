@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   // Find campaigns ready to send
   const { data: campaigns } = await supabaseAdmin
     .from("campaigns")
-    .select("id")
+    .select("id, send_days")
     .eq("status", "scheduled")
     .lte("scheduled_at", new Date().toISOString());
 
@@ -22,9 +22,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "No campaigns to send" });
   }
 
+  const today = new Date().getDay();
   const results = [];
 
   for (const campaign of campaigns) {
+    // Skip if today isn't in the campaign's send_days
+    const sendDays = campaign.send_days || [1, 2, 3, 4, 5];
+    if (!sendDays.includes(today)) {
+      results.push({ campaign_id: campaign.id, skipped: true, reason: "Not a send day" });
+      continue;
+    }
+
     try {
       const result = await sendCampaign(campaign.id, supabaseAdmin);
       results.push({ campaign_id: campaign.id, ...result });
