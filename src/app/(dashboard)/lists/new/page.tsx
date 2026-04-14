@@ -9,7 +9,7 @@ export default async function NewListPage() {
   const { data: contacts } = await supabase
     .from("contacts")
     .select("*")
-    .order("name", { ascending: true });
+    .order("first_name", { ascending: true });
 
   return (
     <div className="max-w-3xl">
