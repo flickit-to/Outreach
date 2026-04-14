@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/timezone";
 
 export function CampaignForm({
   lists,
@@ -27,6 +28,7 @@ export function CampaignForm({
   const [sendNow, setSendNow] = useState(true);
   const [fromEmailId, setFromEmailId] = useState<string>("");
   const [abEnabled, setAbEnabled] = useState(false);
+  const [timezone, setTimezone] = useState(getBrowserTimezone);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -63,7 +65,7 @@ export function CampaignForm({
         status: "scheduled",
         scheduled_at: sendNow
           ? new Date().toISOString()
-          : data.scheduled_at ? new Date(data.scheduled_at).toISOString() : null,
+          : data.scheduled_at ? zonedTimeToUtc(data.scheduled_at, timezone) : null,
       })
       .select()
       .single();
@@ -246,9 +248,35 @@ export function CampaignForm({
             </label>
           </div>
           {!sendNow && (
-            <div className="space-y-2">
-              <Label htmlFor="scheduled_at">Send Date & Time</Label>
-              <Input id="scheduled_at" type="datetime-local" {...register("scheduled_at")} />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <select
+                  id="timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {!COMMON_TIMEZONES.some((tz) => tz.value === timezone) && (
+                    <option value={timezone}>{timezone} (your browser)</option>
+                  )}
+                  {COMMON_TIMEZONES.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Default: your browser timezone ({getBrowserTimezone()})
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scheduled_at">Send Date & Time</Label>
+                <Input id="scheduled_at" type="datetime-local" {...register("scheduled_at")} />
+                <p className="text-xs text-muted-foreground">
+                  Time interpreted in {timezone}
+                </p>
+              </div>
             </div>
           )}
         </CardContent>

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/timezone";
 
 export function CampaignEditForm({
   campaign,
@@ -26,6 +27,7 @@ export function CampaignEditForm({
   const [loading, setLoading] = useState(false);
   const [fromEmailId, setFromEmailId] = useState<string>(campaign.from_email_id || "");
   const [abEnabled, setAbEnabled] = useState(!!campaign.subject_b);
+  const [timezone, setTimezone] = useState(getBrowserTimezone);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -62,7 +64,7 @@ export function CampaignEditForm({
         body: data.body,
         from_email_id: fromEmailId || null,
         list_id: data.list_id,
-        scheduled_at: data.scheduled_at ? new Date(data.scheduled_at).toISOString() : null,
+        scheduled_at: data.scheduled_at ? zonedTimeToUtc(data.scheduled_at, timezone) : null,
       })
       .eq("id", campaign.id);
 
@@ -186,9 +188,32 @@ export function CampaignEditForm({
         <Card>
           <CardHeader><CardTitle>Schedule</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="scheduled_at">Send Date & Time</Label>
-              <Input id="scheduled_at" type="datetime-local" {...register("scheduled_at")} />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <select
+                  id="timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {!COMMON_TIMEZONES.some((tz) => tz.value === timezone) && (
+                    <option value={timezone}>{timezone} (your browser)</option>
+                  )}
+                  {COMMON_TIMEZONES.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scheduled_at">Send Date & Time</Label>
+                <Input id="scheduled_at" type="datetime-local" {...register("scheduled_at")} />
+                <p className="text-xs text-muted-foreground">
+                  Time interpreted in {timezone}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
