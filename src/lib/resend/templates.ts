@@ -1,0 +1,44 @@
+import type { Contact } from "@/lib/types";
+import { getTrackingPixelHtml } from "@/lib/tracking/pixel";
+import { rewriteLinks } from "@/lib/tracking/links";
+
+function replaceVars(text: string, contact: Contact): string {
+  const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
+  return text
+    .replace(/\{\{first_name\}\}/g, contact.first_name || "")
+    .replace(/\{\{last_name\}\}/g, contact.last_name || "")
+    .replace(/\{\{name\}\}/g, fullName)
+    .replace(/\{\{company\}\}/g, contact.company || "")
+    .replace(/\{\{role\}\}/g, contact.role || "")
+    .replace(/\{\{email\}\}/g, contact.email);
+}
+
+export function processEmailBody(
+  body: string,
+  contact: Contact,
+  sendId: string,
+  appUrl: string
+): string {
+  const processed = replaceVars(body, contact);
+
+  const htmlBody = processed
+    .split("\n")
+    .map((line) => (line.trim() ? `<p>${line}</p>` : "<br>"))
+    .join("");
+
+  let html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
+${htmlBody}
+${getTrackingPixelHtml(sendId, appUrl)}
+</body>
+</html>`;
+
+  html = rewriteLinks(html, sendId, appUrl);
+  return html;
+}
+
+export function processSubject(subject: string, contact: Contact): string {
+  return replaceVars(subject, contact);
+}
