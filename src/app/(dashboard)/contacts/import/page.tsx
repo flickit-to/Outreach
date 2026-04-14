@@ -115,7 +115,7 @@ export default function ImportPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       let imported = 0;
-      let skipped = 0;
+      const duplicateEmails: string[] = [];
       let errors = 0;
 
       for (const row of csvRows) {
@@ -158,7 +158,7 @@ export default function ImportPage() {
 
         if (insertError) {
           if (insertError.message.includes("duplicate") || insertError.message.includes("unique")) {
-            skipped++;
+            duplicateEmails.push(email);
           } else {
             errors++;
           }
@@ -167,9 +167,16 @@ export default function ImportPage() {
         }
       }
 
+      const duplicateMsg = duplicateEmails.length > 0
+        ? `${duplicateEmails.length} contacts not added — already exist: ${duplicateEmails.slice(0, 5).join(", ")}${duplicateEmails.length > 5 ? `, +${duplicateEmails.length - 5} more` : ""}`
+        : "";
+
       toast({
-        title: "Import complete",
-        description: `${imported} imported, ${skipped} skipped (duplicate), ${errors} errors.`,
+        title: `${imported} contacts imported`,
+        description: [
+          duplicateMsg,
+          errors > 0 ? `${errors} errors (invalid email)` : "",
+        ].filter(Boolean).join(" · "),
       });
       router.push("/contacts");
       router.refresh();
