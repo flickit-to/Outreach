@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CampaignActions } from "@/components/campaigns/campaign-actions";
+import { CampaignCountdown } from "@/components/campaigns/campaign-countdown";
 import { Pencil } from "lucide-react";
 import { getStatusColor, formatDate, formatDateTime } from "@/lib/utils";
 import { computeTimeToOpen } from "@/lib/analytics/time-to-open";
@@ -75,6 +76,9 @@ export default async function CampaignDetailPage({
           >
             {(campaign as Campaign).status === "cancelled" ? "paused" : (campaign as Campaign).status}
           </Badge>
+          {(campaign as Campaign).status === "scheduled" && (campaign as Campaign).scheduled_at && (
+            <CampaignCountdown scheduledAt={(campaign as Campaign).scheduled_at!} />
+          )}
         </div>
         <div className="flex gap-2">
           {["draft", "scheduled"].includes((campaign as Campaign).status) && (

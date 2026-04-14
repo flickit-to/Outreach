@@ -5,6 +5,7 @@ import type { CampaignWithStats } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CampaignActions } from "./campaign-actions";
+import { CampaignCountdown } from "./campaign-countdown";
 import { Pencil } from "lucide-react";
 import { getStatusColor, formatDate } from "@/lib/utils";
 import {
@@ -64,9 +65,14 @@ export function CampaignList({
                 </TableCell>
                 <TableCell className="max-w-xs truncate">{campaign.subject}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className={getStatusColor(campaign.status)}>
-                    {campaign.status === "cancelled" ? "paused" : campaign.status}
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant="secondary" className={`${getStatusColor(campaign.status)} w-fit`}>
+                      {campaign.status === "cancelled" ? "paused" : campaign.status}
+                    </Badge>
+                    {campaign.status === "scheduled" && campaign.scheduled_at && (
+                      <CampaignCountdown scheduledAt={campaign.scheduled_at} />
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">{campaign.total_recipients}</TableCell>
                 <TableCell className="text-right">{openRate}%</TableCell>
