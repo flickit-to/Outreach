@@ -31,10 +31,7 @@ export const campaignSchema = z.object({
   subject: z.string().min(1, "Subject is required").max(200, "Subject too long"),
   subject_b: z.string().max(200).optional(),
   body: z.string().min(1, "Email body is required"),
-  scheduled_at: z.string().optional().refine(
-    (v) => !v || new Date(v).getTime() >= Date.now() - 60_000,
-    { message: "Scheduled time cannot be in the past" }
-  ),
+  scheduled_at: z.string().optional(),
   from_email_id: z.string().optional(), // null = auto-rotate
   list_id: z.string().min(1, "Select a list"),
 });

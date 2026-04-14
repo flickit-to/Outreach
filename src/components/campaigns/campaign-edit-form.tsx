@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/timezone";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 export function CampaignEditForm({
   campaign,
@@ -28,17 +29,15 @@ export function CampaignEditForm({
   const [fromEmailId, setFromEmailId] = useState<string>(campaign.from_email_id || "");
   const [abEnabled, setAbEnabled] = useState(!!campaign.subject_b);
   const [timezone, setTimezone] = useState(getBrowserTimezone);
-  const [minDateTime, setMinDateTime] = useState("");
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-      setMinDateTime(now.toISOString().slice(0, 16));
-    };
-    update();
-    const id = setInterval(update, 60_000);
-    return () => clearInterval(id);
-  }, []);
+  const [scheduledAt, setScheduledAt] = useState(
+    campaign.scheduled_at
+      ? (() => {
+          const d = new Date(campaign.scheduled_at);
+          const pad = (n: number) => String(n).padStart(2, "0");
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        })()
+      : ""
+  );
   const router = useRouter();
   const { toast } = useToast();
 
@@ -75,7 +74,7 @@ export function CampaignEditForm({
         body: data.body,
         from_email_id: fromEmailId || null,
         list_id: data.list_id,
-        scheduled_at: data.scheduled_at ? zonedTimeToUtc(data.scheduled_at, timezone) : null,
+        scheduled_at: scheduledAt ? zonedTimeToUtc(scheduledAt, timezone) : null,
       })
       .eq("id", campaign.id);
 
@@ -220,7 +219,11 @@ export function CampaignEditForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scheduled_at">Send Date & Time</Label>
-                <Input id="scheduled_at" type="datetime-local" min={minDateTime} {...register("scheduled_at")} />
+                <DateTimePicker
+                  value={scheduledAt}
+                  onChange={setScheduledAt}
+                  minDate={new Date()}
+                />
                 <p className="text-xs text-muted-foreground">
                   Time interpreted in {timezone}
                 </p>

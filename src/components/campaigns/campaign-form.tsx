@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/timezone";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 export function CampaignForm({
   lists,
@@ -29,17 +30,7 @@ export function CampaignForm({
   const [fromEmailId, setFromEmailId] = useState<string>("");
   const [abEnabled, setAbEnabled] = useState(false);
   const [timezone, setTimezone] = useState(getBrowserTimezone);
-  const [minDateTime, setMinDateTime] = useState("");
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-      setMinDateTime(now.toISOString().slice(0, 16));
-    };
-    update();
-    const id = setInterval(update, 60_000);
-    return () => clearInterval(id);
-  }, []);
+  const [scheduledAt, setScheduledAt] = useState("");
   const router = useRouter();
   const { toast } = useToast();
 
@@ -76,7 +67,7 @@ export function CampaignForm({
         status: "scheduled",
         scheduled_at: sendNow
           ? new Date().toISOString()
-          : data.scheduled_at ? zonedTimeToUtc(data.scheduled_at, timezone) : null,
+          : scheduledAt ? zonedTimeToUtc(scheduledAt, timezone) : null,
       })
       .select()
       .single();
@@ -283,7 +274,11 @@ export function CampaignForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scheduled_at">Send Date & Time</Label>
-                <Input id="scheduled_at" type="datetime-local" min={minDateTime} {...register("scheduled_at")} />
+                <DateTimePicker
+                  value={scheduledAt}
+                  onChange={setScheduledAt}
+                  minDate={new Date()}
+                />
                 <p className="text-xs text-muted-foreground">
                   Time interpreted in {timezone}
                 </p>
