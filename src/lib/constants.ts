@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Users,
+  Building2,
   List,
   Mail,
   Settings,
@@ -11,6 +12,7 @@ export const DAILY_SEND_LIMIT = 20;
 export const NAV_ITEMS = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Contacts", href: "/contacts", icon: Users },
+  { label: "Companies", href: "/companies", icon: Building2 },
   { label: "Lists", href: "/lists", icon: List },
   { label: "Campaigns", href: "/campaigns", icon: Mail },
   { label: "Settings", href: "/settings", icon: Settings },

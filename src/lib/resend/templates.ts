@@ -51,7 +51,7 @@ export function processEmailBody(
       /<a\s+([^>]*?)>/gi,
       '<a style="text-decoration:underline;color:#2563eb;" $1>'
     );
-    signatureBlock = `<div style="margin-top:24px;font-size:14px;color:#555;">
+    signatureBlock = `<div style="margin-top:40px;font-size:14px;color:#555;">
 ${signature.imageUrl ? `<div style="margin-bottom:10px;"><img src="${signature.imageUrl}" alt="" width="70" height="70" style="width:70px;height:70px;object-fit:cover;display:block;border-radius:4px;margin-bottom:10px;" /></div>` : ""}
 ${sigLinesWithStyledLinks}
 </div>`;
