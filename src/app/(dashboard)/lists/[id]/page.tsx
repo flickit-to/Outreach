@@ -4,9 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ContactTable } from "@/components/contacts/contact-table";
 import { AddContactsToListButton } from "@/components/lists/add-contacts-to-list-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
-import { ArrowLeft, Users, Mail } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { ContactList, Contact, Tag } from "@/lib/types";
 
 export default async function ListDetailPage({
@@ -33,14 +32,12 @@ export default async function ListDetailPage({
   const contacts = (listContacts || []).map((lc: any) => lc.contacts as Contact).filter(Boolean);
   const contactIdsInList = contacts.map((c) => c.id);
 
-  // Fetch all contacts (for add-contacts dialog) - minus ones already in list
   const { data: allContactsRaw } = await supabase
     .from("contacts")
     .select("*")
     .order("first_name");
   const availableContacts = ((allContactsRaw as Contact[]) || []).filter((c) => !contactIdsInList.includes(c.id));
 
-  // Tags for color rendering
   const { data: tags } = await supabase
     .from("tags")
     .select("*")
@@ -58,9 +55,10 @@ export default async function ListDetailPage({
           </Link>
           <div>
             <h1 className="text-2xl font-bold">{(list as ContactList).name}</h1>
-            {(list as ContactList).description && (
-              <p className="text-sm text-muted-foreground">{(list as ContactList).description}</p>
-            )}
+            <p className="text-sm text-muted-foreground">
+              {contacts.length} contacts · Created {formatDate((list as ContactList).created_at)}
+              {(list as ContactList).description && ` · ${(list as ContactList).description}`}
+            </p>
           </div>
         </div>
         <AddContactsToListButton
@@ -69,28 +67,6 @@ export default async function ListDetailPage({
         />
       </div>
 
-      <div className="flex gap-4">
-        <Card className="flex-1">
-          <CardContent className="pt-6 flex items-center gap-3">
-            <Users className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-2xl font-bold">{contacts.length}</p>
-              <p className="text-xs text-muted-foreground">Contacts</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="flex-1">
-          <CardContent className="pt-6 flex items-center gap-3">
-            <Mail className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-2xl font-bold">{formatDate((list as ContactList).created_at)}</p>
-              <p className="text-xs text-muted-foreground">Created</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Full-featured contact table — same as /contacts page */}
       <ContactTable contacts={contacts} allTags={(tags as Tag[]) || []} />
     </div>
   );
