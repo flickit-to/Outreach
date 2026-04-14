@@ -3,14 +3,22 @@ import { createClient } from "@/lib/supabase/server";
 import { ContactTable } from "@/components/contacts/contact-table";
 import { Button } from "@/components/ui/button";
 import { Plus, Upload } from "lucide-react";
-import type { Contact } from "@/lib/types";
+import type { Contact, Tag } from "@/lib/types";
 
 export default async function ContactsPage() {
   const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   const { data: contacts } = await supabase
     .from("contacts")
     .select("*")
     .order("created_at", { ascending: false });
+
+  const { data: tags } = await supabase
+    .from("tags")
+    .select("*")
+    .eq("user_id", user!.id)
+    .order("name");
 
   return (
     <div>
@@ -31,7 +39,7 @@ export default async function ContactsPage() {
           </Link>
         </div>
       </div>
-      <ContactTable contacts={(contacts as Contact[]) || []} />
+      <ContactTable contacts={(contacts as Contact[]) || []} allTags={(tags as Tag[]) || []} />
     </div>
   );
 }

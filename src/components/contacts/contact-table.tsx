@@ -4,7 +4,8 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Contact } from "@/lib/types";
+import type { Contact, Tag } from "@/lib/types";
+import { TAG_COLOR_CLASSES } from "@/lib/types";
 import { ContactStatusBadge } from "./contact-status-badge";
 import { LeadStageBadge } from "./lead-stage-badge";
 import { Button } from "@/components/ui/button";
@@ -93,7 +94,8 @@ function getUniqueValues(contacts: Contact[], key: string): string[] {
   return Array.from(values).sort();
 }
 
-export function ContactTable({ contacts }: { contacts: Contact[] }) {
+export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; allTags?: Tag[] }) {
+  const tagColorByName = new Map(allTags.map((t) => [t.name, t.color]));
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -296,11 +298,17 @@ export function ContactTable({ contacts }: { contacts: Contact[] }) {
       case "tags":
         return (
           <div className="flex gap-1 flex-wrap">
-            {contact.tags.map((tag) => (
-              <span key={tag} className="inline-flex px-1.5 py-0.5 rounded text-[11px] bg-muted text-muted-foreground">
-                {tag}
-              </span>
-            ))}
+            {contact.tags.map((tag) => {
+              const color = tagColorByName.get(tag);
+              const colorClass = color
+                ? TAG_COLOR_CLASSES[color]
+                : "bg-muted text-muted-foreground border-border";
+              return (
+                <span key={tag} className={`inline-flex px-1.5 py-0.5 rounded text-[11px] border ${colorClass}`}>
+                  {tag}
+                </span>
+              );
+            })}
           </div>
         );
       default:

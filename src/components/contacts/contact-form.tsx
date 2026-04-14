@@ -6,7 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { contactSchema, type ContactInput } from "@/lib/validators";
-import type { Contact } from "@/lib/types";
+import type { Contact, Tag } from "@/lib/types";
+import { TagSelector } from "./tag-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,11 +18,14 @@ import { useToast } from "@/hooks/use-toast";
 export function ContactForm({
   contact,
   userId,
+  allTags = [],
 }: {
   contact?: Contact;
   userId: string;
+  allTags?: Tag[];
 }) {
   const [loading, setLoading] = useState(false);
+  const [tagNames, setTagNames] = useState<string[]>(contact?.tags || []);
   const router = useRouter();
   const { toast } = useToast();
   const isEdit = !!contact;
@@ -47,9 +51,7 @@ export function ContactForm({
     setLoading(true);
     const supabase = createClient();
 
-    const tags = data.tags
-      ? data.tags.split(",").map((t) => t.trim()).filter(Boolean)
-      : [];
+    const tags = tagNames;
 
     const payload = {
       email: data.email.toLowerCase().trim(),
@@ -117,8 +119,16 @@ export function ContactForm({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags (comma-separated)</Label>
-            <Input id="tags" placeholder="lead, saas, cold" {...register("tags")} />
+            <Label>Tags</Label>
+            <TagSelector
+              allTags={allTags}
+              selectedTagNames={tagNames}
+              onChange={setTagNames}
+              userId={userId}
+            />
+            <p className="text-xs text-muted-foreground">
+              Manage tag colors in Settings → Tags
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>

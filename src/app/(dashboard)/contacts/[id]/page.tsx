@@ -28,6 +28,12 @@ export default async function ContactDetailPage({
     notFound();
   }
 
+  const { data: allTags } = await supabase
+    .from("tags")
+    .select("*")
+    .eq("user_id", user!.id)
+    .order("name");
+
   // Fetch activity: events with send and campaign info
   const { data: sends } = await supabase
     .from("sends")
@@ -164,7 +170,7 @@ export default async function ContactDetailPage({
       </Card>
 
       {/* Edit Form */}
-      <ContactForm contact={contact as Contact} userId={user!.id} />
+      <ContactForm contact={contact as Contact} userId={user!.id} allTags={(allTags as any) || []} />
 
       {/* Activity Timeline */}
       <Card>

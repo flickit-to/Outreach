@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { SettingsForm } from "@/components/settings/settings-form";
-import type { Settings, SenderEmail } from "@/lib/types";
+import { TagsManager } from "@/components/settings/tags-manager";
+import type { Settings, SenderEmail, Tag } from "@/lib/types";
 
 export default async function SettingsPage() {
   const supabase = createClient();
@@ -20,14 +21,21 @@ export default async function SettingsPage() {
     .eq("user_id", user!.id)
     .order("created_at", { ascending: true });
 
+  const { data: tags } = await supabase
+    .from("tags")
+    .select("*")
+    .eq("user_id", user!.id)
+    .order("name", { ascending: true });
+
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+    <div className="max-w-2xl space-y-6">
+      <h1 className="text-2xl font-bold">Settings</h1>
       <SettingsForm
         initialData={settings as Settings | null}
         senderEmails={(senderEmails as SenderEmail[]) || []}
         userId={user!.id}
       />
+      <TagsManager tags={(tags as Tag[]) || []} userId={user!.id} />
     </div>
   );
 }

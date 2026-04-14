@@ -70,6 +70,31 @@ export interface Event {
   created_at: string;
 }
 
+export type TagColor = "gray" | "brown" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink" | "red" | "teal";
+
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  color: TagColor;
+  created_at: string;
+}
+
+export const TAG_COLOR_CLASSES: Record<TagColor, string> = {
+  gray: "bg-gray-100 text-gray-700 border-gray-200",
+  brown: "bg-amber-100 text-amber-800 border-amber-200",
+  orange: "bg-orange-100 text-orange-700 border-orange-200",
+  yellow: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  green: "bg-green-100 text-green-700 border-green-200",
+  blue: "bg-blue-100 text-blue-700 border-blue-200",
+  purple: "bg-purple-100 text-purple-700 border-purple-200",
+  pink: "bg-pink-100 text-pink-700 border-pink-200",
+  red: "bg-red-100 text-red-700 border-red-200",
+  teal: "bg-teal-100 text-teal-700 border-teal-200",
+};
+
+export const TAG_COLORS: TagColor[] = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red", "teal"];
+
 export interface ContactList {
   id: string;
   user_id: string;
