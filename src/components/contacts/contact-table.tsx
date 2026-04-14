@@ -58,9 +58,9 @@ interface ColumnDef {
 }
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
-  { key: "first_name", label: "First Name", icon: Type, sortable: true, filterable: true },
-  { key: "last_name", label: "Last Name", icon: Type, sortable: true, filterable: true },
-  { key: "email", label: "Email", icon: AtSign, sortable: true, filterable: true },
+  { key: "first_name", label: "First Name", icon: Type, sortable: true, filterable: false },
+  { key: "last_name", label: "Last Name", icon: Type, sortable: true, filterable: false },
+  { key: "email", label: "Email", icon: AtSign, sortable: true, filterable: false },
   { key: "company", label: "Company", icon: Building2, sortable: true, filterable: true },
   { key: "role", label: "Role", icon: Briefcase, sortable: true, filterable: true },
   { key: "lead_stage", label: "Lead Stage", icon: Target, sortable: true, filterable: true },
