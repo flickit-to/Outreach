@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User } from "lucide-react";
+import { PrivacyToggle } from "./privacy-toggle";
 
 export function Header({ email }: { email: string }) {
   const router = useRouter();
@@ -22,7 +23,8 @@ export function Header({ email }: { email: string }) {
   }
 
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-end px-6">
+    <header className="h-16 border-b bg-card flex items-center justify-end gap-1 px-6">
+      <PrivacyToggle />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="gap-2">

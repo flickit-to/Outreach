@@ -57,3 +57,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Privacy mode: blur emails and names for screen recordings */
+.privacy-mode .privacy-blur {
+  filter: blur(5px);
+  transition: filter 0.2s;
+}
+.privacy-mode .privacy-blur:hover {
+  filter: none;
+}

@@ -18,8 +18,9 @@ import {
 } from "@/components/ui/table";
 import { CampaignActions } from "@/components/campaigns/campaign-actions";
 import { CampaignCountdown } from "@/components/campaigns/campaign-countdown";
+import { ClientDateTime } from "@/components/ui/client-date-time";
 import { Pencil } from "lucide-react";
-import { getStatusColor, formatDate, formatDateTime } from "@/lib/utils";
+import { getStatusColor, formatDate } from "@/lib/utils";
 import { computeTimeToOpen } from "@/lib/analytics/time-to-open";
 import type { Campaign, Contact } from "@/lib/types";
 
@@ -117,7 +118,7 @@ export default async function CampaignDetailPage({
           {(campaign as Campaign).sent_at && (
             <div>
               <span className="text-muted-foreground">Sent:</span>{" "}
-              {formatDateTime((campaign as Campaign).sent_at!)}
+              <ClientDateTime value={(campaign as Campaign).sent_at!} />
             </div>
           )}
           <div className="whitespace-pre-wrap mt-4 p-4 bg-muted rounded-md text-sm">
@@ -180,10 +181,10 @@ export default async function CampaignDetailPage({
                   const contact = send.contacts as Contact;
                   return (
                     <TableRow key={send.id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium privacy-blur">
                         {[contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "—"}
                       </TableCell>
-                      <TableCell>{contact?.email}</TableCell>
+                      <TableCell className="privacy-blur">{contact?.email}</TableCell>
                       {hasAB && (
                         <TableCell>
                           <Badge variant="outline">{send.variant || "A"}</Badge>
@@ -198,13 +199,13 @@ export default async function CampaignDetailPage({
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {send.sent_at ? formatDateTime(send.sent_at) : "—"}
+                        <ClientDateTime value={send.sent_at} />
                       </TableCell>
                       <TableCell>
-                        {send.opened_at ? formatDateTime(send.opened_at) : "—"}
+                        <ClientDateTime value={send.opened_at} />
                       </TableCell>
                       <TableCell>
-                        {send.clicked_at ? formatDateTime(send.clicked_at) : "—"}
+                        <ClientDateTime value={send.clicked_at} />
                       </TableCell>
                       <TableCell>
                         <MarkRepliedButton sendId={send.id} currentStatus={send.status} />

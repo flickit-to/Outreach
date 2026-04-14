@@ -279,14 +279,14 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
     switch (colKey) {
       case "first_name":
         return (
-          <Link href={`/contacts/${contact.id}`} className="text-sm font-medium hover:underline">
+          <Link href={`/contacts/${contact.id}`} className="text-sm font-medium hover:underline privacy-blur">
             {contact.first_name || "—"}
           </Link>
         );
       case "last_name":
-        return <span className="text-sm">{contact.last_name || ""}</span>;
+        return <span className="text-sm privacy-blur">{contact.last_name || ""}</span>;
       case "email":
-        return <span className="text-sm text-muted-foreground">{contact.email}</span>;
+        return <span className="text-sm text-muted-foreground privacy-blur">{contact.email}</span>;
       case "company":
         return <span className="text-sm">{contact.company || ""}</span>;
       case "role":
