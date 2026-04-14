@@ -62,7 +62,7 @@ export function CampaignEditForm({
         body: data.body,
         from_email_id: fromEmailId || null,
         list_id: data.list_id,
-        scheduled_at: data.scheduled_at || null,
+        scheduled_at: data.scheduled_at ? new Date(data.scheduled_at).toISOString() : null,
       })
       .eq("id", campaign.id);
 

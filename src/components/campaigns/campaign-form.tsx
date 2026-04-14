@@ -61,7 +61,9 @@ export function CampaignForm({
         from_email_id: fromEmailId || null,
         list_id: data.list_id,
         status: "scheduled",
-        scheduled_at: sendNow ? new Date().toISOString() : data.scheduled_at,
+        scheduled_at: sendNow
+          ? new Date().toISOString()
+          : data.scheduled_at ? new Date(data.scheduled_at).toISOString() : null,
       })
       .select()
       .single();
