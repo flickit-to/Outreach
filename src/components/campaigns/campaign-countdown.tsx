@@ -15,7 +15,7 @@ function getTimeLeft(scheduledAt: string): {
   const diff = target - now;
 
   if (diff <= 0) {
-    return { text: "Waiting for cron (9 AM UTC)", isPast: true };
+    return { text: "Sending in next 5 min (daily limit applies)", isPast: true };
   }
 
   const seconds = Math.floor(diff / 1000);

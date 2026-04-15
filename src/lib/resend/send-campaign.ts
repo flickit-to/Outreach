@@ -64,13 +64,35 @@ export async function sendCampaign(
   }
 
   // Fetch campaign contacts
-  const { data: campaignContacts } = await supabaseAdmin
+  const { data: campaignContactsRaw } = await supabaseAdmin
     .from("campaign_contacts")
     .select("contact_id, contacts:contact_id(*)")
     .eq("campaign_id", campaignId);
 
-  if (!campaignContacts || campaignContacts.length === 0) {
+  if (!campaignContactsRaw || campaignContactsRaw.length === 0) {
     throw new Error("No contacts in this campaign");
+  }
+
+  // Filter out contacts that already have a non-failed send for this campaign
+  // (prevents re-sending on subsequent days)
+  const { data: existingSends } = await supabaseAdmin
+    .from("sends")
+    .select("contact_id")
+    .eq("campaign_id", campaignId)
+    .neq("status", "failed");
+  const alreadySent = new Set((existingSends || []).map((s: any) => s.contact_id));
+
+  const campaignContacts = campaignContactsRaw.filter(
+    (cc: any) => !alreadySent.has(cc.contact_id)
+  );
+
+  if (campaignContacts.length === 0) {
+    // All contacts already sent — mark campaign complete
+    await supabaseAdmin
+      .from("campaigns")
+      .update({ status: "sent", sent_at: new Date().toISOString() })
+      .eq("id", campaignId);
+    return { sent: 0, failed: 0, deferred: 0 };
   }
 
   // Check daily send limit
@@ -245,14 +267,35 @@ export async function sendCampaign(
     }
   }
 
-  // Update campaign status
-  await supabaseAdmin
-    .from("campaigns")
-    .update({
-      status: deferred > 0 ? "scheduled" : "sent",
-      sent_at: sent > 0 ? new Date().toISOString() : null,
-    })
-    .eq("id", campaignId);
+  // Update campaign status and roll forward scheduled_at if more contacts remain
+  if (deferred > 0) {
+    // Roll scheduled_at forward to the same time tomorrow (or next valid send day)
+    const sendDays: number[] = campaign.send_days || [1, 2, 3, 4, 5];
+    const current = new Date(campaign.scheduled_at);
+    const next = new Date(current);
+    // Add 1 day, then skip days not in send_days (max 7 iterations)
+    for (let attempt = 0; attempt < 7; attempt++) {
+      next.setDate(next.getDate() + 1);
+      if (sendDays.includes(next.getDay())) break;
+    }
+
+    await supabaseAdmin
+      .from("campaigns")
+      .update({
+        status: "scheduled",
+        scheduled_at: next.toISOString(),
+      })
+      .eq("id", campaignId);
+  } else {
+    // All contacts processed
+    await supabaseAdmin
+      .from("campaigns")
+      .update({
+        status: "sent",
+        sent_at: sent > 0 ? new Date().toISOString() : campaign.sent_at,
+      })
+      .eq("id", campaignId);
+  }
 
   return { sent, failed, deferred };
 }
