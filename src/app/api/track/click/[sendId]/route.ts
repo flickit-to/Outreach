@@ -20,18 +20,25 @@ export async function GET(
     // Look up the send
     const { data: send } = await supabase
       .from("sends")
-      .select("id, contact_id")
+      .select("id, contact_id, opened_at")
       .eq("id", sendId)
       .single();
 
     if (send) {
-      // Update send status to clicked (highest engagement)
+      const now = new Date().toISOString();
+      // Update send status to clicked — and also set opened_at if missing
+      // (some email clients block images, so we never recorded the open)
+      const updateData: any = {
+        status: "clicked",
+        clicked_at: now,
+      };
+      if (!send.opened_at) {
+        updateData.opened_at = now;
+      }
+
       await supabase
         .from("sends")
-        .update({
-          status: "clicked",
-          clicked_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", sendId);
 
       // Log event
