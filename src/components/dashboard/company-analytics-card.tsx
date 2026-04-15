@@ -54,7 +54,7 @@ export function CompanyAnalyticsCard({
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.company} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-2 px-2 font-medium truncate max-w-xs">{row.company}</td>
+                    <td className="py-2 px-2 font-medium truncate max-w-xs privacy-blur">{row.company}</td>
                     <td className="py-2 px-2 text-right">{row.contacts}</td>
                     <td className="py-2 px-2 text-right">{row.sent}</td>
                     <td className="py-2 px-2 text-right">{row.openRate}%</td>

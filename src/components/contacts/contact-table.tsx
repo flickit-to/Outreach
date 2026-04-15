@@ -288,7 +288,7 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
       case "email":
         return <span className="text-sm text-muted-foreground privacy-blur">{contact.email}</span>;
       case "company":
-        return <span className="text-sm">{contact.company || ""}</span>;
+        return <span className="text-sm privacy-blur">{contact.company || ""}</span>;
       case "role":
         return <span className="text-sm text-muted-foreground">{contact.role || ""}</span>;
       case "lead_stage":

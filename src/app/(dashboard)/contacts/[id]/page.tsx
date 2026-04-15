@@ -91,7 +91,7 @@ export default async function ContactDetailPage({
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex items-center gap-4">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold privacy-blur">
           {[(contact as Contact).first_name, (contact as Contact).last_name].filter(Boolean).join(" ") || (contact as Contact).email}
         </h1>
         <LeadStageBadge
@@ -132,19 +132,19 @@ export default async function ContactDetailPage({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">First Name:</span>{" "}
-              {(contact as Contact).first_name || "—"}
+              <span className="privacy-blur">{(contact as Contact).first_name || "—"}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Last Name:</span>{" "}
-              {(contact as Contact).last_name || "—"}
+              <span className="privacy-blur">{(contact as Contact).last_name || "—"}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Email:</span>{" "}
-              {(contact as Contact).email}
+              <span className="privacy-blur">{(contact as Contact).email}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Company:</span>{" "}
-              {(contact as Contact).company || "—"}
+              <span className="privacy-blur">{(contact as Contact).company || "—"}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Role:</span>{" "}

@@ -89,15 +89,15 @@ export function ContactSelector({
                 {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
+                <p className="text-sm font-medium truncate privacy-blur">
                   {[contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email}
                 </p>
                 {contact.first_name && (
-                  <p className="text-xs text-muted-foreground">{contact.email}</p>
+                  <p className="text-xs text-muted-foreground privacy-blur">{contact.email}</p>
                 )}
               </div>
               {contact.company && (
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs privacy-blur">
                   {contact.company}
                 </Badge>
               )}

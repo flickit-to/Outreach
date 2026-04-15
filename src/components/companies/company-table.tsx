@@ -118,7 +118,7 @@ export function CompanyTable({ companies }: { companies: CompanyStats[] }) {
         return (
           <Link
             href={`/contacts?company=${encodeURIComponent(row.company)}`}
-            className="text-sm font-medium hover:underline"
+            className="text-sm font-medium hover:underline privacy-blur"
           >
             {row.company}
           </Link>

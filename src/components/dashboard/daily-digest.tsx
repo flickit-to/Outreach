@@ -96,7 +96,7 @@ export function DailyDigest({
                   href={`/contacts/${c.contactId}`}
                   className="flex items-center justify-between p-2 rounded-md hover:bg-muted text-sm"
                 >
-                  <span>{c.name || c.email}</span>
+                  <span className="privacy-blur">{c.name || c.email}</span>
                   {c.count && c.count > 1 && (
                     <Badge variant="secondary" className="text-xs">{c.count}x</Badge>
                   )}
@@ -125,7 +125,7 @@ export function DailyDigest({
                   href={`/contacts/${c.contactId}`}
                   className="flex items-center justify-between p-2 rounded-md hover:bg-muted text-sm"
                 >
-                  <span>{c.name || c.email}</span>
+                  <span className="privacy-blur">{c.name || c.email}</span>
                   {c.count && c.count > 1 && (
                     <Badge variant="secondary" className="text-xs">{c.count}x</Badge>
                   )}
@@ -149,7 +149,7 @@ export function DailyDigest({
                   href={`/contacts/${c.contactId}`}
                   className="flex items-center justify-between p-2 rounded-md hover:bg-muted text-sm"
                 >
-                  <span>{c.name || c.email}</span>
+                  <span className="privacy-blur">{c.name || c.email}</span>
                   <span className="text-xs text-muted-foreground">
                     {c.daysSinceSend}d ago
                   </span>

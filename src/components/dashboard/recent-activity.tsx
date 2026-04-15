@@ -60,7 +60,7 @@ export function RecentActivity({ activities }: { activities: ActivityItem[] }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm">
                     <span className="font-medium">{config.label}</span>{" "}
-                    {activity.contact_name || activity.contact_email}
+                    <span className="privacy-blur">{activity.contact_name || activity.contact_email}</span>
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {activity.campaign_name} &middot;{" "}
