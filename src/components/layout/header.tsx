@@ -29,7 +29,7 @@ export function Header({ email }: { email: string }) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="gap-2">
             <User className="h-4 w-4" />
-            <span className="text-sm">{email}</span>
+            <span className="text-sm privacy-blur">{email}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
