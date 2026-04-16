@@ -7,6 +7,7 @@ import { CampaignRecipientsTable } from "@/components/campaigns/campaign-recipie
 import { TimeToOpenCard } from "@/components/campaigns/time-to-open-card";
 import { CampaignActions } from "@/components/campaigns/campaign-actions";
 import { CampaignCountdown } from "@/components/campaigns/campaign-countdown";
+import { CreateFollowupDialog } from "@/components/campaigns/create-followup-dialog";
 import { ClientDateTime } from "@/components/ui/client-date-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Pencil, Clock, Users, BarChart3, Send } from "lucide-react";
+import { Pencil, Clock, Users, BarChart3, Send, ArrowLeft, GitBranch } from "lucide-react";
 import { getStatusColor, formatDate } from "@/lib/utils";
 import { computeTimeToOpen } from "@/lib/analytics/time-to-open";
 import type { Campaign, Contact } from "@/lib/types";
@@ -51,6 +52,26 @@ export default async function CampaignDetailPage({
 
   // Sender emails are extracted from sends data inside the client component
 
+  // Parent campaign info (if this is a sub-campaign)
+  let parentCampaign: any = null;
+  if ((campaign as Campaign).parent_campaign_id) {
+    const { data: parent } = await supabase
+      .from("campaigns")
+      .select("id, name")
+      .eq("id", (campaign as Campaign).parent_campaign_id!)
+      .single();
+    parentCampaign = parent;
+  }
+
+  // Sub-campaigns (if this is a parent)
+  const { data: subCampaigns } = await supabase
+    .from("campaigns")
+    .select("id, name, status, trigger_engagement, sent_at")
+    .eq("parent_campaign_id", params.id)
+    .order("created_at");
+
+  const isMainCampaign = !(campaign as Campaign).parent_campaign_id;
+
   // Total campaign contacts (including not-yet-sent)
   const { count: totalCampaignContacts } = await supabase
     .from("campaign_contacts")
@@ -58,6 +79,11 @@ export default async function CampaignDetailPage({
     .eq("campaign_id", params.id);
 
   const sendsList = sends || [];
+
+  // Counts for the Create Follow-up dialog (only for main campaigns)
+  const openedCount = sendsList.filter((s) => ["opened", "clicked", "replied"].includes(s.status)).length;
+  const clickedCount = sendsList.filter((s) => s.status === "clicked").length;
+  const openedOrClickedCount = openedCount; // since opened includes clicked
   const totalRecipients = totalCampaignContacts || 0;
   const totalSent = sendsList.filter((s) => !["pending", "failed"].includes(s.status)).length;
   const totalDelivered = sendsList.filter((s) => ["delivered", "opened", "clicked", "replied"].includes(s.status)).length;
@@ -131,6 +157,15 @@ export default async function CampaignDetailPage({
               </Button>
             </Link>
           )}
+          {isMainCampaign && totalSent > 0 && (
+            <CreateFollowupDialog
+              parentCampaignId={params.id}
+              parentName={(campaign as Campaign).name}
+              openedCount={openedCount}
+              clickedCount={clickedCount}
+              openedOrClickedCount={openedOrClickedCount}
+            />
+          )}
           <CampaignActions
             campaignId={params.id}
             status={(campaign as Campaign).status}
@@ -139,6 +174,53 @@ export default async function CampaignDetailPage({
           />
         </div>
       </div>
+
+      {/* Parent campaign link (for sub-campaigns) */}
+      {parentCampaign && (
+        <Card className="bg-blue-50/50 border-blue-200">
+          <CardContent className="pt-4 pb-4 flex items-center gap-3">
+            <ArrowLeft className="h-4 w-4 text-blue-700" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Follow-up to</p>
+              <Link href={`/campaigns/${parentCampaign.id}`} className="text-sm font-medium text-blue-900 hover:underline">
+                {parentCampaign.name}
+              </Link>
+            </div>
+            {(campaign as Campaign).trigger_engagement && (
+              <Badge variant="outline">
+                Triggered by: {(campaign as Campaign).trigger_engagement?.replace("_", " ")}
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sub-campaigns funnel (for main campaigns with sub-campaigns) */}
+      {isMainCampaign && subCampaigns && subCampaigns.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <GitBranch className="h-4 w-4" />
+              Follow-up Sequence
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {subCampaigns.map((sub: any) => (
+              <Link key={sub.id} href={`/campaigns/${sub.id}`} className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="text-[10px]">
+                    {sub.trigger_engagement?.replace("_", " ")}
+                  </Badge>
+                  <span className="text-sm font-medium">{sub.name}</span>
+                </div>
+                <Badge variant="secondary" className={getStatusColor(sub.status)}>
+                  {sub.status === "cancelled" ? "paused" : sub.status}
+                </Badge>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Message (compact, always visible) */}
       <Card>

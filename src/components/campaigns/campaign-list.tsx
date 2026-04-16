@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CampaignActions } from "./campaign-actions";
 import { CampaignCountdown } from "./campaign-countdown";
-import { Pencil } from "lucide-react";
+import { Pencil, CornerDownRight } from "lucide-react";
 import { getStatusColor, formatDate } from "@/lib/utils";
 import {
   Table,
@@ -30,6 +30,25 @@ export function CampaignList({
     );
   }
 
+  // Group: main campaigns at top, then their sub-campaigns nested under
+  const mains = campaigns.filter((c) => !c.parent_campaign_id);
+  const subsByParent = new Map<string, CampaignWithStats[]>();
+  campaigns.forEach((c) => {
+    if (c.parent_campaign_id) {
+      if (!subsByParent.has(c.parent_campaign_id)) subsByParent.set(c.parent_campaign_id, []);
+      subsByParent.get(c.parent_campaign_id)!.push(c);
+    }
+  });
+
+  // Build flat list with main + sub interleaved
+  const ordered: { campaign: CampaignWithStats; isSub: boolean }[] = [];
+  mains.forEach((m) => {
+    ordered.push({ campaign: m, isSub: false });
+    (subsByParent.get(m.id) || []).forEach((s) => {
+      ordered.push({ campaign: s, isSub: true });
+    });
+  });
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -46,7 +65,7 @@ export function CampaignList({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {campaigns.map((campaign) => {
+          {ordered.map(({ campaign, isSub }) => {
             const openRate =
               campaign.delivered_count > 0
                 ? Math.round((campaign.opened_count / campaign.delivered_count) * 100)
@@ -57,11 +76,19 @@ export function CampaignList({
                 : 0;
 
             return (
-              <TableRow key={campaign.id}>
+              <TableRow key={campaign.id} className={isSub ? "bg-muted/30" : ""}>
                 <TableCell>
-                  <Link href={`/campaigns/${campaign.id}`} className="font-medium hover:underline">
-                    {campaign.name}
-                  </Link>
+                  <div className={`flex items-center gap-2 ${isSub ? "pl-6" : ""}`}>
+                    {isSub && <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                    <Link href={`/campaigns/${campaign.id}`} className="font-medium hover:underline">
+                      {campaign.name}
+                    </Link>
+                    {isSub && campaign.trigger_engagement && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {campaign.trigger_engagement.replace("_", " ")}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="max-w-xs truncate">{campaign.subject}</TableCell>
                 <TableCell>

@@ -66,14 +66,56 @@ export async function sendCampaign(
   if (activeSenders.length === 0)
     throw new Error("No sender emails configured. Add sender emails in Settings.");
 
-  // Fetch campaign contacts (excluding already sent)
-  const { data: campaignContactsRaw } = await supabaseAdmin
-    .from("campaign_contacts")
-    .select("contact_id, contacts:contact_id(*)")
-    .eq("campaign_id", campaignId);
+  // Fetch campaign contacts
+  // For SUB-CAMPAIGNS: resolve dynamically from parent's engagement
+  // For MAIN CAMPAIGNS: use static campaign_contacts list
+  let campaignContactsRaw: any[] = [];
+
+  if (campaign.parent_campaign_id && campaign.trigger_engagement) {
+    // Sub-campaign: query parent's sends matching the trigger
+    const triggerStatuses: string[] = [];
+    if (campaign.trigger_engagement === "opened") {
+      triggerStatuses.push("opened", "clicked", "replied");
+    } else if (campaign.trigger_engagement === "clicked") {
+      triggerStatuses.push("clicked");
+    } else if (campaign.trigger_engagement === "opened_or_clicked") {
+      triggerStatuses.push("opened", "clicked", "replied");
+    }
+
+    const { data: triggeredSends } = await supabaseAdmin
+      .from("sends")
+      .select("contact_id, contacts:contact_id(*)")
+      .eq("campaign_id", campaign.parent_campaign_id)
+      .in("status", triggerStatuses);
+
+    // Deduplicate by contact_id
+    const seen = new Set<string>();
+    campaignContactsRaw = (triggeredSends || []).filter((s: any) => {
+      if (!s.contacts) return false;
+      // Skip contacts who replied or moved to higher stages
+      if (["replied", "meeting_booked", "closed_won", "closed_lost"].includes(s.contacts.lead_stage)) return false;
+      if (seen.has(s.contact_id)) return false;
+      seen.add(s.contact_id);
+      return true;
+    });
+
+    // Sync to campaign_contacts table for record-keeping
+    for (const cc of campaignContactsRaw) {
+      await supabaseAdmin
+        .from("campaign_contacts")
+        .upsert({ campaign_id: campaignId, contact_id: cc.contact_id }, { onConflict: "campaign_id,contact_id" });
+    }
+  } else {
+    // Main campaign: use the static list via campaign_contacts
+    const { data: ccData } = await supabaseAdmin
+      .from("campaign_contacts")
+      .select("contact_id, contacts:contact_id(*)")
+      .eq("campaign_id", campaignId);
+    campaignContactsRaw = ccData || [];
+  }
 
   if (!campaignContactsRaw || campaignContactsRaw.length === 0)
-    throw new Error("No contacts in this campaign");
+    throw new Error("No eligible contacts in this campaign");
 
   const { data: existingSends } = await supabaseAdmin
     .from("sends")

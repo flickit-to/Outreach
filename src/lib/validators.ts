@@ -33,7 +33,9 @@ export const campaignSchema = z.object({
   body: z.string().min(1, "Email body is required"),
   scheduled_at: z.string().optional(),
   from_email_id: z.string().optional(), // null = auto-rotate
-  list_id: z.string().min(1, "Select a list"),
+  list_id: z.string().optional(),
+  parent_campaign_id: z.string().optional(),
+  trigger_engagement: z.enum(["opened", "clicked", "opened_or_clicked"]).optional(),
   send_days: z.array(z.number().min(0).max(6)).optional(),
 });
 

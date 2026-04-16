@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -34,7 +34,14 @@ export function CampaignForm({
   const [scheduledAt, setScheduledAt] = useState("");
   const [sendDays, setSendDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+
+  // Sub-campaign detection from query params
+  const parentCampaignId = searchParams.get("parent");
+  const triggerEngagement = searchParams.get("trigger") as "opened" | "clicked" | "opened_or_clicked" | null;
+  const presetName = searchParams.get("name");
+  const isSubCampaign = !!parentCampaignId;
 
   const {
     register,
@@ -43,7 +50,7 @@ export function CampaignForm({
   } = useForm<CampaignInput>({
     resolver: zodResolver(campaignSchema),
     defaultValues: {
-      name: "",
+      name: presetName || "",
       subject: "",
       subject_b: "",
       body: "",
@@ -65,7 +72,9 @@ export function CampaignForm({
         subject_b: abEnabled ? data.subject_b || null : null,
         body: data.body,
         from_email_id: fromEmailId || null,
-        list_id: data.list_id,
+        list_id: isSubCampaign ? null : data.list_id || null,
+        parent_campaign_id: parentCampaignId || null,
+        trigger_engagement: triggerEngagement || null,
         send_days: sendDays,
         status: "scheduled",
         scheduled_at: sendNow
@@ -85,18 +94,20 @@ export function CampaignForm({
       return;
     }
 
-    // Get contacts from the list and add to campaign_contacts
-    const { data: listContacts } = await supabase
-      .from("list_contacts")
-      .select("contact_id")
-      .eq("list_id", data.list_id);
+    // For main campaigns: get contacts from the list. Sub-campaigns resolve dynamically at send time.
+    if (!isSubCampaign && data.list_id) {
+      const { data: listContacts } = await supabase
+        .from("list_contacts")
+        .select("contact_id")
+        .eq("list_id", data.list_id);
 
-    if (listContacts && listContacts.length > 0) {
-      const campaignContacts = listContacts.map((lc) => ({
-        campaign_id: campaign.id,
-        contact_id: lc.contact_id,
-      }));
-      await supabase.from("campaign_contacts").insert(campaignContacts);
+      if (listContacts && listContacts.length > 0) {
+        const campaignContacts = listContacts.map((lc) => ({
+          campaign_id: campaign.id,
+          contact_id: lc.contact_id,
+        }));
+        await supabase.from("campaign_contacts").insert(campaignContacts);
+      }
     }
 
     // If send now, trigger immediate send
@@ -111,7 +122,7 @@ export function CampaignForm({
     toast({
       title: sendNow ? "Campaign sending" : "Campaign scheduled",
       description: sendNow
-        ? `Sending to ${listContacts?.length || 0} contacts...`
+        ? `Sending now...`
         : `Scheduled for ${data.scheduled_at}`,
     });
 
@@ -175,29 +186,39 @@ export function CampaignForm({
         </CardContent>
       </Card>
 
-      {/* List selection */}
+      {/* List selection (hidden for sub-campaigns) */}
       <Card>
         <CardHeader>
           <CardTitle>Recipients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="list_id">Select a List</Label>
-            <select
-              id="list_id"
-              {...register("list_id")}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">Choose a list...</option>
-              {lists.map((list) => (
-                <option key={list.id} value={list.id}>
-                  {list.name} ({list.contact_count} contacts)
-                </option>
-              ))}
-            </select>
-            {errors.list_id && <p className="text-sm text-red-600">{errors.list_id.message}</p>}
-          </div>
-          {lists.length === 0 && (
+          {isSubCampaign ? (
+            <div className="p-3 rounded-md bg-blue-50 border border-blue-200 text-sm">
+              <p className="font-medium text-blue-900">Follow-up Campaign</p>
+              <p className="text-xs text-blue-700 mt-1">
+                Recipients are auto-resolved from the parent campaign at send time.
+                Trigger: <strong>{triggerEngagement?.replace("_", " ")}</strong>
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="list_id">Select a List</Label>
+              <select
+                id="list_id"
+                {...register("list_id")}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Choose a list...</option>
+                {lists.map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.name} ({list.contact_count} contacts)
+                  </option>
+                ))}
+              </select>
+              {errors.list_id && <p className="text-sm text-red-600">{errors.list_id.message}</p>}
+            </div>
+          )}
+          {!isSubCampaign && lists.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No lists yet.{" "}
               <a href="/lists/new" className="text-primary hover:underline">Create a list</a> first.
