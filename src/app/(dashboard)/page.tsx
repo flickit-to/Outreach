@@ -6,6 +6,7 @@ import { BestTimesCard } from "@/components/dashboard/best-times-card";
 import { TimeToOpenSummary } from "@/components/dashboard/time-to-open-summary";
 import { DailyDigest } from "@/components/dashboard/daily-digest";
 import { CompanyAnalyticsCard, type CompanyRow } from "@/components/dashboard/company-analytics-card";
+import { SenderPerformanceCard, type SenderRow } from "@/components/dashboard/sender-performance-card";
 import { getBestSendTimes } from "@/lib/analytics/best-time";
 import { computeTimeToOpen } from "@/lib/analytics/time-to-open";
 
@@ -26,7 +27,13 @@ export default async function DashboardPage() {
   // Send stats
   const { data: allSends } = await supabase
     .from("sends")
-    .select("status, sent_at, opened_at, contact_id");
+    .select("status, sent_at, opened_at, contact_id, sender_email_id, from_email_address");
+
+  // Fetch sender emails for performance card
+  const { data: dashboardSenderEmails } = await supabase
+    .from("sender_emails")
+    .select("id, email, name")
+    .order("created_at");
 
   const totalSent = allSends?.filter((s) => !["pending", "failed"].includes(s.status)).length || 0;
   const totalDelivered = allSends?.filter((s) => ["delivered", "opened", "clicked", "replied"].includes(s.status)).length || 0;
@@ -227,6 +234,30 @@ export default async function DashboardPage() {
 
   const companiesTargeted = companyRowsMap.size;
 
+  // Sender performance aggregation
+  const senderMap = new Map<string, SenderRow>();
+  const senderLookup = new Map((dashboardSenderEmails || []).map((s: any) => [s.id, s]));
+  for (const s of allSends || []) {
+    const sid = (s as any).sender_email_id || "default";
+    const senderInfo = senderLookup.get(sid) || { email: (s as any).from_email_address || "unknown", name: (s as any).from_email_address || "Default" };
+    if (!senderMap.has(sid)) {
+      senderMap.set(sid, { email: (senderInfo as any).email, name: (senderInfo as any).name, sent: 0, opened: 0, clicked: 0, bounced: 0, openRate: 0, clickRate: 0, bounceRate: 0 });
+    }
+    const row = senderMap.get(sid)!;
+    if (!["pending", "failed"].includes(s.status)) row.sent++;
+    if (["opened", "clicked", "replied"].includes(s.status)) row.opened++;
+    if (s.status === "clicked") row.clicked++;
+    if (s.status === "bounced") row.bounced++;
+  }
+  const senderRows: SenderRow[] = Array.from(senderMap.values())
+    .map((r) => ({
+      ...r,
+      openRate: r.sent > 0 ? Math.round((r.opened / r.sent) * 100) : 0,
+      clickRate: r.sent > 0 ? Math.round((r.clicked / r.sent) * 100) : 0,
+      bounceRate: r.sent > 0 ? Math.round((r.bounced / r.sent) * 100) : 0,
+    }))
+    .sort((a, b) => b.sent - a.sent);
+
   // Upcoming campaigns
   const { data: upcoming } = await supabase
     .from("campaigns")
@@ -285,6 +316,8 @@ export default async function DashboardPage() {
           totalOpens={timeToOpen.totalOpens}
         />
       </div>
+
+      <SenderPerformanceCard rows={senderRows} />
 
       <CompanyAnalyticsCard companiesTargeted={companiesTargeted} rows={companyRows} />
     </div>

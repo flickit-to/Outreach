@@ -67,6 +67,8 @@ export default async function ContactDetailPage({
             bounced_at: send.bounced_at,
             replied_at: send.replied_at,
             variant: send.variant || "A",
+            sender_email_id: send.sender_email_id || null,
+            from_email_address: send.from_email_address || null,
             created_at: send.created_at,
           },
           campaign,

@@ -20,13 +20,9 @@ export async function sendCampaign(
     .eq("id", campaignId)
     .single();
 
-  if (campError || !campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  if (!["scheduled", "draft"].includes(campaign.status)) {
+  if (campError || !campaign) throw new Error("Campaign not found");
+  if (!["scheduled", "draft"].includes(campaign.status))
     throw new Error(`Campaign status is ${campaign.status}, cannot send`);
-  }
 
   // Fetch settings
   const { data: settings } = await supabaseAdmin
@@ -35,46 +31,50 @@ export async function sendCampaign(
     .eq("user_id", campaign.user_id)
     .single();
 
-  if (!settings?.resend_api_key) {
+  if (!settings?.resend_api_key)
     throw new Error("Resend API key not configured in Settings.");
-  }
 
   // Fetch sender emails
-  const { data: senderEmails } = await supabaseAdmin
+  const { data: senderEmailsRaw } = await supabaseAdmin
     .from("sender_emails")
     .select("*")
     .eq("user_id", campaign.user_id)
     .order("created_at", { ascending: true });
 
-  // Determine sender strategy
-  let specificSender: SenderEmail | null = null;
-  const allSenders: SenderEmail[] = (senderEmails as SenderEmail[]) || [];
+  const allSenders: SenderEmail[] = (senderEmailsRaw as SenderEmail[]) || [];
 
+  // If campaign has a specific sender, only use that one
+  let activeSenders = allSenders;
   if (campaign.from_email_id) {
-    // Specific sender selected
-    specificSender = allSenders.find((s) => s.id === campaign.from_email_id) || null;
-    if (!specificSender) {
-      throw new Error("Selected sender email not found.");
-    }
-  } else if (allSenders.length === 0) {
-    // No sender emails configured, use default from settings
-    if (!settings.from_email) {
-      throw new Error("No sender emails configured. Add sender emails in Settings or set a default from email.");
-    }
+    const specific = allSenders.find((s) => s.id === campaign.from_email_id);
+    if (specific) activeSenders = [specific];
   }
 
-  // Fetch campaign contacts
+  // Fallback: no sender emails at all → use default from settings
+  if (activeSenders.length === 0 && settings.from_email) {
+    // Create a virtual sender for the default
+    activeSenders = [{
+      id: "default",
+      user_id: campaign.user_id,
+      email: settings.from_email,
+      name: settings.from_name || "Outreach",
+      daily_limit: settings.daily_send_limit || 20,
+      created_at: "",
+    }];
+  }
+
+  if (activeSenders.length === 0)
+    throw new Error("No sender emails configured. Add sender emails in Settings.");
+
+  // Fetch campaign contacts (excluding already sent)
   const { data: campaignContactsRaw } = await supabaseAdmin
     .from("campaign_contacts")
     .select("contact_id, contacts:contact_id(*)")
     .eq("campaign_id", campaignId);
 
-  if (!campaignContactsRaw || campaignContactsRaw.length === 0) {
+  if (!campaignContactsRaw || campaignContactsRaw.length === 0)
     throw new Error("No contacts in this campaign");
-  }
 
-  // Filter out contacts that already have a non-failed send for this campaign
-  // (prevents re-sending on subsequent days)
   const { data: existingSends } = await supabaseAdmin
     .from("sends")
     .select("contact_id")
@@ -87,7 +87,6 @@ export async function sendCampaign(
   );
 
   if (campaignContacts.length === 0) {
-    // All contacts already sent — mark campaign complete
     await supabaseAdmin
       .from("campaigns")
       .update({ status: "sent", sent_at: new Date().toISOString() })
@@ -95,19 +94,35 @@ export async function sendCampaign(
     return { sent: 0, failed: 0, deferred: 0 };
   }
 
-  // Check daily send limit
-  const twentyFourHoursAgo = new Date(
-    Date.now() - 24 * 60 * 60 * 1000
-  ).toISOString();
+  // ===== Build per-sender capacity map =====
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const senderCapacity = new Map<string, { sender: SenderEmail; remaining: number }>();
 
-  const { count: sentToday } = await supabaseAdmin
-    .from("sends")
-    .select("*", { count: "exact", head: true })
-    .gte("sent_at", twentyFourHoursAgo)
-    .neq("status", "failed");
+  for (const sender of activeSenders) {
+    const { count } = await supabaseAdmin
+      .from("sends")
+      .select("*", { count: "exact", head: true })
+      .eq("sender_email_id", sender.id)
+      .gte("sent_at", twentyFourHoursAgo)
+      .neq("status", "failed");
 
-  const dailyLimit = settings.daily_send_limit || 20;
-  const remaining = Math.max(0, dailyLimit - (sentToday || 0));
+    const limit = sender.daily_limit || 20;
+    const remaining = Math.max(0, limit - (count || 0));
+    senderCapacity.set(sender.id, { sender, remaining });
+  }
+
+  // Count assigned contacts per sender (for load balancing new assignments)
+  const { data: assignedCounts } = await supabaseAdmin
+    .from("contacts")
+    .select("assigned_sender_id")
+    .eq("user_id", campaign.user_id)
+    .not("assigned_sender_id", "is", null);
+
+  const assignedPerSender = new Map<string, number>();
+  for (const c of assignedCounts || []) {
+    const sid = (c as any).assigned_sender_id;
+    assignedPerSender.set(sid, (assignedPerSender.get(sid) || 0) + 1);
+  }
 
   // Update campaign status
   await supabaseAdmin
@@ -125,45 +140,69 @@ export async function sendCampaign(
   for (let i = 0; i < campaignContacts.length; i++) {
     const cc = campaignContacts[i] as any;
     const contact = cc.contacts as Contact;
-
     if (!contact) continue;
 
-    // Check daily limit
-    if (sent >= remaining) {
-      deferred++;
-      continue;
+    // ===== Pick sender (sticky or load-balanced) =====
+    let chosenSender: SenderEmail | null = null;
+
+    // 1. Check if contact has a sticky sender assignment
+    if (contact.assigned_sender_id) {
+      const cap = senderCapacity.get(contact.assigned_sender_id);
+      if (cap && cap.remaining > 0) {
+        chosenSender = cap.sender;
+      }
+      // If assigned sender has no capacity → defer this contact
+      if (!chosenSender) {
+        deferred++;
+        continue;
+      }
     }
 
-    // Pick sender: specific, auto-rotate, or default
-    let fromName: string;
-    let fromEmail: string;
+    // 2. No assignment → pick sender with most remaining capacity
+    if (!chosenSender) {
+      let bestSenderId: string | null = null;
+      let bestRemaining = 0;
 
-    if (specificSender) {
-      // Use the specific sender selected for this campaign
-      fromName = specificSender.name;
-      fromEmail = specificSender.email;
-    } else if (allSenders.length > 0) {
-      // Auto-rotate: round-robin across sender emails
-      const senderIndex = i % allSenders.length;
-      fromName = allSenders[senderIndex].name;
-      fromEmail = allSenders[senderIndex].email;
-    } else {
-      // Fallback to default settings
-      fromName = settings.from_name || "Outreach";
-      fromEmail = settings.from_email;
+      senderCapacity.forEach((cap, sid) => {
+        if (cap.remaining > bestRemaining) {
+          bestRemaining = cap.remaining;
+          bestSenderId = sid;
+        } else if (cap.remaining === bestRemaining && bestSenderId) {
+          const countA = assignedPerSender.get(bestSenderId) || 0;
+          const countB = assignedPerSender.get(sid) || 0;
+          if (countB < countA) bestSenderId = sid;
+        }
+      });
+
+      if (!bestSenderId || bestRemaining <= 0) {
+        deferred++;
+        continue;
+      }
+
+      chosenSender = senderCapacity.get(bestSenderId)!.sender;
+
+      // Assign this sender to the contact (sticky for future)
+      if (chosenSender.id !== "default") {
+        await supabaseAdmin
+          .from("contacts")
+          .update({ assigned_sender_id: chosenSender.id })
+          .eq("id", contact.id);
+        assignedPerSender.set(chosenSender.id, (assignedPerSender.get(chosenSender.id) || 0) + 1);
+      }
     }
 
-    // Determine A/B variant
+    // ===== Create send record =====
     const hasAB = !!campaign.subject_b;
     const splitPoint = Math.ceil(campaignContacts.length / 2);
     const variant = hasAB ? (i < splitPoint ? "A" : "B") : "A";
 
-    // Create send record
     const { data: sendRecord, error: sendError } = await supabaseAdmin
       .from("sends")
       .insert({
         campaign_id: campaignId,
         contact_id: contact.id,
+        sender_email_id: chosenSender.id !== "default" ? chosenSender.id : null,
+        from_email_address: chosenSender.email,
         status: "pending",
         variant,
       })
@@ -176,7 +215,6 @@ export async function sendCampaign(
     }
 
     try {
-      // Process email
       const html = processEmailBody(
         campaign.body,
         contact,
@@ -192,9 +230,8 @@ export async function sendCampaign(
         : campaign.subject;
       const subject = processSubject(subjectText, contact);
 
-      // Send via Resend
       const { data: emailData, error: emailError } = await resend.emails.send({
-        from: `${fromName} <${fromEmail}>`,
+        from: `${chosenSender.name} <${chosenSender.email}>`,
         to: [contact.email],
         subject,
         html,
@@ -205,12 +242,10 @@ export async function sendCampaign(
           .from("sends")
           .update({ status: "failed" })
           .eq("id", sendRecord.id);
-
         failed++;
         continue;
       }
 
-      // Update send record
       await supabaseAdmin
         .from("sends")
         .update({
@@ -220,19 +255,16 @@ export async function sendCampaign(
         })
         .eq("id", sendRecord.id);
 
-      // Log sent event
       await supabaseAdmin.from("events").insert({
         send_id: sendRecord.id,
         type: "sent",
       });
 
-      // Update contact status
       await supabaseAdmin.rpc("recalculate_contact_status", {
         p_contact_id: contact.id,
       });
 
       // Auto-update lead stage
-      // Check if this is a follow-up (contact already had emails sent before)
       const { count: previousSends } = await supabaseAdmin
         .from("sends")
         .select("*", { count: "exact", head: true })
@@ -241,14 +273,12 @@ export async function sendCampaign(
         .in("status", ["sent", "delivered", "opened", "clicked"]);
 
       if ((previousSends || 0) > 0) {
-        // This is a follow-up email
         await supabaseAdmin
           .from("contacts")
           .update({ lead_stage: "follow_up_sent" })
           .eq("id", contact.id)
           .in("lead_stage", ["new_lead", "email_sent", "opened", "follow_up_needed"]);
       } else {
-        // First email to this contact
         await supabaseAdmin
           .from("contacts")
           .update({ lead_stage: "email_sent" })
@@ -256,28 +286,27 @@ export async function sendCampaign(
           .eq("lead_stage", "new_lead");
       }
 
+      // Decrement sender capacity
+      const cap = senderCapacity.get(chosenSender.id);
+      if (cap) cap.remaining--;
+
       sent++;
     } catch {
       await supabaseAdmin
         .from("sends")
         .update({ status: "failed" })
         .eq("id", sendRecord.id);
-
       failed++;
     }
   }
 
-  // Update campaign status and roll forward scheduled_at if more contacts remain
+  // Roll forward or complete
   if (deferred > 0) {
-    // Roll scheduled_at forward to the same time tomorrow (or next valid send day)
-    // Use Australia/Sydney timezone for day-of-week check (matches user's send_days intent)
     const sendDays: number[] = campaign.send_days || [1, 2, 3, 4, 5];
     const current = new Date(campaign.scheduled_at);
     const next = new Date(current);
-
     const dayMapLookup: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
-    // Add 1 day, then skip days not in send_days (max 7 iterations)
     for (let attempt = 0; attempt < 7; attempt++) {
       next.setDate(next.getDate() + 1);
       const sydDay = new Intl.DateTimeFormat("en-US", {
@@ -290,19 +319,12 @@ export async function sendCampaign(
 
     await supabaseAdmin
       .from("campaigns")
-      .update({
-        status: "scheduled",
-        scheduled_at: next.toISOString(),
-      })
+      .update({ status: "scheduled", scheduled_at: next.toISOString() })
       .eq("id", campaignId);
   } else {
-    // All contacts processed
     await supabaseAdmin
       .from("campaigns")
-      .update({
-        status: "sent",
-        sent_at: sent > 0 ? new Date().toISOString() : campaign.sent_at,
-      })
+      .update({ status: "sent", sent_at: sent > 0 ? new Date().toISOString() : campaign.sent_at })
       .eq("id", campaignId);
   }
 

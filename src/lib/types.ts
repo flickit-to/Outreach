@@ -13,6 +13,7 @@ export interface Contact {
   last_name: string | null;
   company: string | null;
   role: string | null;
+  assigned_sender_id: string | null;
   tags: string[];
   status: ContactStatus;
   lead_stage: LeadStage;
@@ -49,6 +50,8 @@ export interface Send {
   campaign_id: string;
   contact_id: string;
   resend_id: string | null;
+  sender_email_id: string | null;
+  from_email_address: string | null;
   status: SendStatus;
   variant: ABVariant;
   sent_at: string | null;
@@ -119,6 +122,7 @@ export interface SenderEmail {
   user_id: string;
   email: string;
   name: string;
+  daily_limit: number;
   created_at: string;
 }
 

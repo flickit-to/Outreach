@@ -356,20 +356,38 @@ export function SettingsForm({
               {senderEmails.map((sender) => (
                 <div
                   key={sender.id}
-                  className="flex items-center justify-between p-3 rounded-md border"
+                  className="flex items-center justify-between p-3 rounded-md border gap-3"
                 >
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{sender.name}</p>
                     <p className="text-xs text-muted-foreground">{sender.email}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => removeSenderEmail(sender.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        defaultValue={sender.daily_limit || 20}
+                        className="w-14 h-8 text-center text-sm border rounded-md"
+                        onBlur={async (e) => {
+                          const val = parseInt(e.target.value) || 20;
+                          const supabase = createClient();
+                          await supabase.from("sender_emails").update({ daily_limit: val }).eq("id", sender.id);
+                          toast({ title: `Daily limit set to ${val}` });
+                        }}
+                      />
+                      <span className="text-xs text-muted-foreground">/day</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => removeSenderEmail(sender.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

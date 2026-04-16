@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CampaignStats } from "@/components/campaigns/campaign-stats";
 import { ABComparison } from "@/components/campaigns/ab-comparison";
-import { MarkRepliedButton } from "@/components/campaigns/mark-replied-button";
+import { CampaignRecipientsTable } from "@/components/campaigns/campaign-recipients-table";
 import { TimeToOpenCard } from "@/components/campaigns/time-to-open-card";
 import { CampaignActions } from "@/components/campaigns/campaign-actions";
 import { CampaignCountdown } from "@/components/campaigns/campaign-countdown";
@@ -44,9 +44,11 @@ export default async function CampaignDetailPage({
   // All sends for this campaign
   const { data: sends } = await supabase
     .from("sends")
-    .select(`*, contacts:contact_id(*)`)
+    .select(`*, contacts:contact_id(*), sender:sender_email_id(id, email, name)`)
     .eq("campaign_id", params.id)
     .order("sent_at", { ascending: false });
+
+  // Sender emails are extracted from sends data inside the client component
 
   // Total campaign contacts (including not-yet-sent)
   const { count: totalCampaignContacts } = await supabase
@@ -261,58 +263,17 @@ export default async function CampaignDetailPage({
       {/* Time to Open */}
       {timeToOpen.totalOpens > 0 && <TimeToOpenCard {...timeToOpen} />}
 
-      {/* Sent Recipients Table */}
+      {/* Sent Recipients Table (filterable) */}
       {sendsList.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Sent Recipients ({sendsList.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Email</TableHead>
-                    {hasAB && <TableHead>Variant</TableHead>}
-                    <TableHead>Status</TableHead>
-                    <TableHead>Sent At</TableHead>
-                    <TableHead>Opened At</TableHead>
-                    <TableHead>Clicked At</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sendsList.map((send: any) => {
-                    const contact = send.contacts as Contact;
-                    return (
-                      <TableRow key={send.id}>
-                        <TableCell className="font-medium privacy-blur">
-                          {[contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "—"}
-                        </TableCell>
-                        <TableCell className="privacy-blur">{contact?.email}</TableCell>
-                        {hasAB && (
-                          <TableCell>
-                            <Badge variant="outline">{send.variant || "A"}</Badge>
-                          </TableCell>
-                        )}
-                        <TableCell>
-                          <Badge variant="secondary" className={getStatusColor(send.status)}>
-                            {send.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell><ClientDateTime value={send.sent_at} /></TableCell>
-                        <TableCell><ClientDateTime value={send.opened_at} /></TableCell>
-                        <TableCell><ClientDateTime value={send.clicked_at} /></TableCell>
-                        <TableCell>
-                          <MarkRepliedButton sendId={send.id} currentStatus={send.status} />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <CampaignRecipientsTable
+              sends={sendsList as any}
+              hasAB={hasAB}
+            />
           </CardContent>
         </Card>
       )}
