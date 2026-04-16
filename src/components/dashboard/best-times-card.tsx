@@ -2,7 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, Calendar } from "lucide-react";
-import { formatHour } from "@/lib/analytics/best-time";
+
+function formatHourLocal(utcHour: number): string {
+  // Convert UTC hour to local hour using browser timezone
+  const d = new Date();
+  d.setUTCHours(utcHour, 0, 0, 0);
+  return d.toLocaleTimeString(undefined, { hour: "numeric", hour12: true });
+}
 
 interface Props {
   bestDay: string;
@@ -52,7 +58,7 @@ export function BestTimesCard({ bestDay, bestHour, dailyCounts, totalOpens }: Pr
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
             <Clock className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-lg font-bold">{formatHour(bestHour)}</p>
+              <p className="text-lg font-bold">{formatHourLocal(bestHour)}</p>
               <p className="text-xs text-muted-foreground">Best time</p>
             </div>
           </div>

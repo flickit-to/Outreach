@@ -47,12 +47,12 @@ export default async function DashboardPage() {
   // Best Time to Send
   const bestTimes = await getBestSendTimes(supabase);
 
-  // Campaign chart data (last 10 campaigns)
+  // Campaign chart data (last 10 campaigns that have been sent or are sending)
   const { data: recentCampaigns } = await supabase
     .from("campaigns")
     .select("id, name")
-    .eq("status", "sent")
-    .order("sent_at", { ascending: false })
+    .in("status", ["sent", "scheduled", "sending"])
+    .order("created_at", { ascending: false })
     .limit(10);
 
   const chartData = [];
@@ -81,7 +81,7 @@ export default async function DashboardPage() {
       type,
       created_at,
       sends:send_id(
-        contacts:contact_id(email, name),
+        contacts:contact_id(email, first_name, last_name),
         campaigns:campaign_id(name)
       )
     `)
@@ -105,7 +105,7 @@ export default async function DashboardPage() {
   // Opened today
   const { data: openEventsToday } = await supabase
     .from("events")
-    .select("send_id, sends:send_id(contact_id, contacts:contact_id(id, name, email))")
+    .select("send_id, sends:send_id(contact_id, contacts:contact_id(id, first_name, last_name, email))")
     .eq("type", "opened")
     .gte("created_at", todayISO);
 
@@ -124,7 +124,7 @@ export default async function DashboardPage() {
   // Clicked today
   const { data: clickEventsToday } = await supabase
     .from("events")
-    .select("send_id, sends:send_id(contact_id, contacts:contact_id(id, name, email))")
+    .select("send_id, sends:send_id(contact_id, contacts:contact_id(id, first_name, last_name, email))")
     .eq("type", "clicked")
     .gte("created_at", todayISO);
 
@@ -162,7 +162,7 @@ export default async function DashboardPage() {
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   const { data: staleSends } = await supabase
     .from("sends")
-    .select("contact_id, sent_at, contacts:contact_id(id, name, email, lead_stage)")
+    .select("contact_id, sent_at, contacts:contact_id(id, first_name, last_name, email, lead_stage)")
     .in("status", ["sent", "delivered"])
     .lte("sent_at", threeDaysAgo);
 
@@ -249,6 +249,8 @@ export default async function DashboardPage() {
       <StatsCards
         totalContacts={totalContacts || 0}
         totalSent={totalSent}
+        totalDelivered={totalDelivered}
+        totalClicked={totalClicked}
         openRate={openRate}
         clickRate={clickRate}
         bounceRate={bounceRate}
