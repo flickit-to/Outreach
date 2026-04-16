@@ -50,10 +50,18 @@ export async function GET(
         user_agent: request.headers.get("user-agent") || "",
       });
 
-      // Recalculate contact status
+      // Recalculate contact status (email status)
       await supabase.rpc("recalculate_contact_status", {
         p_contact_id: send.contact_id,
       });
+
+      // Auto-advance lead stage to "opened" if still in earlier stage
+      // (Click implies open, even if pixel didn't fire)
+      await supabase
+        .from("contacts")
+        .update({ lead_stage: "opened" })
+        .eq("id", send.contact_id)
+        .in("lead_stage", ["new_lead", "email_sent", "follow_up_sent", "follow_up_needed"]);
     }
   } catch {
     // Don't block the redirect
