@@ -19,7 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Pencil, Clock, Users } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Pencil, Clock, Users, BarChart3, Send } from "lucide-react";
 import { getStatusColor, formatDate } from "@/lib/utils";
 import { computeTimeToOpen } from "@/lib/analytics/time-to-open";
 import type { Campaign, Contact } from "@/lib/types";
@@ -139,190 +140,206 @@ export default async function CampaignDetailPage({
         </div>
       </div>
 
-      {/* Campaign Info */}
+      {/* Message (compact, always visible) */}
       <Card>
         <CardContent className="pt-6 space-y-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">Subject{hasAB ? " A" : ""}:</span>{" "}
-            {(campaign as Campaign).subject}
-          </div>
-          {hasAB && (
+          <div className="flex flex-wrap gap-x-6 gap-y-1">
             <div>
-              <span className="text-muted-foreground">Subject B:</span>{" "}
-              {(campaign as Campaign).subject_b}
+              <span className="text-muted-foreground">Subject{hasAB ? " A" : ""}:</span>{" "}
+              <span className="font-medium">{(campaign as Campaign).subject}</span>
             </div>
-          )}
-          <div>
-            <span className="text-muted-foreground">Created:</span>{" "}
-            {formatDate((campaign as Campaign).created_at)}
-          </div>
-          {(campaign as Campaign).sent_at && (
+            {hasAB && (
+              <div>
+                <span className="text-muted-foreground">Subject B:</span>{" "}
+                <span className="font-medium">{(campaign as Campaign).subject_b}</span>
+              </div>
+            )}
             <div>
-              <span className="text-muted-foreground">Sent:</span>{" "}
-              <ClientDateTime value={(campaign as Campaign).sent_at!} />
+              <span className="text-muted-foreground">Created:</span>{" "}
+              {formatDate((campaign as Campaign).created_at)}
             </div>
-          )}
-          <div className="whitespace-pre-wrap mt-4 p-4 bg-muted rounded-md text-sm">
-            {(campaign as Campaign).body}
+            {(campaign as Campaign).sent_at && (
+              <div>
+                <span className="text-muted-foreground">Sent:</span>{" "}
+                <ClientDateTime value={(campaign as Campaign).sent_at!} />
+              </div>
+            )}
           </div>
+          <details className="mt-2">
+            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View email body</summary>
+            <div className="whitespace-pre-wrap mt-2 p-4 bg-muted rounded-md text-sm">
+              {(campaign as Campaign).body}
+            </div>
+          </details>
         </CardContent>
       </Card>
 
-      {/* Overall Stats (all batches combined) */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-lg font-semibold">Overall Stats</h2>
-          {remaining > 0 && (
-            <span className="text-sm text-muted-foreground">
-              ({totalSent} of {totalRecipients} sent &middot; {remaining} remaining)
-            </span>
-          )}
-        </div>
-        <CampaignStats
-          total={totalRecipients}
-          sent={totalSent}
-          delivered={totalDelivered}
-          opened={totalOpened}
-          clicked={totalClicked}
-          bounced={totalBounced}
-        />
-      </div>
+      {/* Tabs */}
+      <Tabs defaultValue="stats" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsTrigger value="stats" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Stats
+          </TabsTrigger>
+          <TabsTrigger value="recipients" className="gap-2">
+            <Send className="h-4 w-4" />
+            Recipients ({sendsList.length})
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="gap-2">
+            <Users className="h-4 w-4" />
+            Pending ({pendingContacts.length})
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Day-by-Day Breakdown */}
-      {dayBreakdown.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Day-by-Day Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Day</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Sent</TableHead>
-                    <TableHead className="text-right">Opened</TableHead>
-                    <TableHead className="text-right">Clicked</TableHead>
-                    <TableHead className="text-right">Bounced</TableHead>
-                    <TableHead className="text-right">Open Rate</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dayBreakdown.map((day) => (
-                    <TableRow key={day.date}>
-                      <TableCell className="font-medium">Day {day.dayNum}</TableCell>
-                      <TableCell>{formatDate(day.date)}</TableCell>
-                      <TableCell className="text-right">{day.sent}</TableCell>
-                      <TableCell className="text-right">{day.opened}</TableCell>
-                      <TableCell className="text-right">{day.clicked}</TableCell>
-                      <TableCell className="text-right">{day.bounced}</TableCell>
-                      <TableCell className="text-right">
-                        {day.sent > 0 ? Math.round((day.opened / day.sent) * 100) : 0}%
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {remaining > 0 && (
-                    <TableRow>
-                      <TableCell className="font-medium text-muted-foreground">Upcoming</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <ClientDateTime value={(campaign as Campaign).scheduled_at} />
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">{remaining}</TableCell>
-                      <TableCell colSpan={4} className="text-muted-foreground">—</TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+        {/* STATS TAB */}
+        <TabsContent value="stats" className="space-y-6 mt-6">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-lg font-semibold">Overall Stats</h2>
+              {remaining > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  ({totalSent} of {totalRecipients} sent &middot; {remaining} remaining)
+                </span>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* A/B Comparison */}
-      {hasAB && (
-        <ABComparison
-          subjectA={(campaign as Campaign).subject}
-          subjectB={(campaign as Campaign).subject_b!}
-          statsA={{
-            total: variantA.length,
-            opened: variantA.filter((s) => ["opened", "clicked", "replied"].includes(s.status)).length,
-            clicked: variantA.filter((s) => s.status === "clicked").length,
-          }}
-          statsB={{
-            total: variantB.length,
-            opened: variantB.filter((s) => ["opened", "clicked", "replied"].includes(s.status)).length,
-            clicked: variantB.filter((s) => s.status === "clicked").length,
-          }}
-        />
-      )}
-
-      {/* Time to Open */}
-      {timeToOpen.totalOpens > 0 && <TimeToOpenCard {...timeToOpen} />}
-
-      {/* Sent Recipients Table (filterable) */}
-      {sendsList.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sent Recipients ({sendsList.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CampaignRecipientsTable
-              sends={sendsList as any}
-              hasAB={hasAB}
+            <CampaignStats
+              total={totalRecipients}
+              sent={totalSent}
+              delivered={totalDelivered}
+              opened={totalOpened}
+              clicked={totalClicked}
+              bounced={totalBounced}
             />
-          </CardContent>
-        </Card>
-      )}
+          </div>
 
-      {/* Pending Recipients (not yet sent) */}
-      {pendingContacts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Pending Recipients ({pendingContacts.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              These contacts haven&apos;t been sent to yet. They&apos;ll be sent in upcoming batches.
-            </p>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Company</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingContacts.slice(0, 50).map((contact) => (
-                    <TableRow key={contact.id}>
-                      <TableCell className="font-medium privacy-blur">
-                        {[contact.first_name, contact.last_name].filter(Boolean).join(" ") || "—"}
-                      </TableCell>
-                      <TableCell className="privacy-blur">{contact.email}</TableCell>
-                      <TableCell className="privacy-blur">{contact.company || "—"}</TableCell>
-                    </TableRow>
-                  ))}
-                  {pendingContacts.length > 50 && (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        +{pendingContacts.length - 50} more
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+          {dayBreakdown.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Day-by-Day Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Day</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Sent</TableHead>
+                        <TableHead className="text-right">Opened</TableHead>
+                        <TableHead className="text-right">Clicked</TableHead>
+                        <TableHead className="text-right">Bounced</TableHead>
+                        <TableHead className="text-right">Open Rate</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dayBreakdown.map((day) => (
+                        <TableRow key={day.date}>
+                          <TableCell className="font-medium">Day {day.dayNum}</TableCell>
+                          <TableCell>{formatDate(day.date)}</TableCell>
+                          <TableCell className="text-right">{day.sent}</TableCell>
+                          <TableCell className="text-right">{day.opened}</TableCell>
+                          <TableCell className="text-right">{day.clicked}</TableCell>
+                          <TableCell className="text-right">{day.bounced}</TableCell>
+                          <TableCell className="text-right">
+                            {day.sent > 0 ? Math.round((day.opened / day.sent) * 100) : 0}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {remaining > 0 && (
+                        <TableRow>
+                          <TableCell className="font-medium text-muted-foreground">Upcoming</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            <ClientDateTime value={(campaign as Campaign).scheduled_at} />
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">{remaining}</TableCell>
+                          <TableCell colSpan={4} className="text-muted-foreground">—</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {hasAB && (
+            <ABComparison
+              subjectA={(campaign as Campaign).subject}
+              subjectB={(campaign as Campaign).subject_b!}
+              statsA={{
+                total: variantA.length,
+                opened: variantA.filter((s) => ["opened", "clicked", "replied"].includes(s.status)).length,
+                clicked: variantA.filter((s) => s.status === "clicked").length,
+              }}
+              statsB={{
+                total: variantB.length,
+                opened: variantB.filter((s) => ["opened", "clicked", "replied"].includes(s.status)).length,
+                clicked: variantB.filter((s) => s.status === "clicked").length,
+              }}
+            />
+          )}
+
+          {timeToOpen.totalOpens > 0 && <TimeToOpenCard {...timeToOpen} />}
+        </TabsContent>
+
+        {/* RECIPIENTS TAB */}
+        <TabsContent value="recipients" className="mt-6">
+          {sendsList.length > 0 ? (
+            <CampaignRecipientsTable sends={sendsList as any} hasAB={hasAB} />
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              No recipients sent yet. The campaign will start sending at the scheduled time.
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </TabsContent>
+
+        {/* PENDING TAB */}
+        <TabsContent value="pending" className="mt-6">
+          {pendingContacts.length > 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground mb-4">
+                These contacts haven&apos;t been sent to yet. They&apos;ll be sent in upcoming batches.
+              </p>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Company</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingContacts.slice(0, 50).map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell className="font-medium privacy-blur">
+                          {[contact.first_name, contact.last_name].filter(Boolean).join(" ") || "—"}
+                        </TableCell>
+                        <TableCell className="privacy-blur">{contact.email}</TableCell>
+                        <TableCell className="privacy-blur">{contact.company || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                    {pendingContacts.length > 50 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          +{pendingContacts.length - 50} more
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              All contacts have been sent. Campaign complete!
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
