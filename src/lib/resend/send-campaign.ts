@@ -270,13 +270,22 @@ export async function sendCampaign(
   // Update campaign status and roll forward scheduled_at if more contacts remain
   if (deferred > 0) {
     // Roll scheduled_at forward to the same time tomorrow (or next valid send day)
+    // Use Australia/Sydney timezone for day-of-week check (matches user's send_days intent)
     const sendDays: number[] = campaign.send_days || [1, 2, 3, 4, 5];
     const current = new Date(campaign.scheduled_at);
     const next = new Date(current);
+
+    const dayMapLookup: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
     // Add 1 day, then skip days not in send_days (max 7 iterations)
     for (let attempt = 0; attempt < 7; attempt++) {
       next.setDate(next.getDate() + 1);
-      if (sendDays.includes(next.getDay())) break;
+      const sydDay = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Australia/Sydney",
+        weekday: "short",
+      }).format(next);
+      const dayNum = dayMapLookup[sydDay] ?? next.getDay();
+      if (sendDays.includes(dayNum)) break;
     }
 
     await supabaseAdmin

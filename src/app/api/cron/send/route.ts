@@ -22,7 +22,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "No campaigns to send" });
   }
 
-  const today = new Date().getDay();
+  // Get day of week in Sydney timezone
+  const sydneyDay = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Australia/Sydney",
+    weekday: "short",
+  }).format(new Date());
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const today = dayMap[sydneyDay] ?? new Date().getDay();
   const results = [];
 
   for (const campaign of campaigns) {
