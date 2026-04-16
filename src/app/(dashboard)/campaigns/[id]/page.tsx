@@ -72,10 +72,13 @@ export default async function CampaignDetailPage({
   const variantB = sendsList.filter((s) => s.variant === "B");
 
   // Group sends by day for day-by-day breakdown
+  // Use Australia/Sydney timezone for grouping (since user is in Sydney)
+  // TODO: make this configurable via user settings
+  const userTimezone = "Australia/Sydney";
   const sendsByDay = new Map<string, typeof sendsList>();
   for (const send of sendsList) {
     if (!send.sent_at) continue;
-    const day = new Date(send.sent_at).toISOString().slice(0, 10);
+    const day = new Date(send.sent_at).toLocaleDateString("en-CA", { timeZone: userTimezone });
     if (!sendsByDay.has(day)) sendsByDay.set(day, []);
     sendsByDay.get(day)!.push(send);
   }
