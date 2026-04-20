@@ -267,17 +267,56 @@ export async function sendCampaign(
           imageUrl: settings.signature_image_url || null,
         }
       );
-      const subjectText = variant === "B" && campaign.subject_b
-        ? campaign.subject_b
-        : campaign.subject;
-      const subject = processSubject(subjectText, contact);
 
-      const { data: emailData, error: emailError } = await resend.emails.send({
+      // Determine subject and reply headers
+      let subject: string;
+      const headers: Record<string, string> = {};
+
+      if (campaign.send_as_reply && campaign.parent_campaign_id) {
+        // Look up the parent campaign's send for this contact to get message_id
+        const { data: parentSend } = await supabaseAdmin
+          .from("sends")
+          .select("message_id")
+          .eq("campaign_id", campaign.parent_campaign_id)
+          .eq("contact_id", contact.id)
+          .not("message_id", "is", null)
+          .limit(1)
+          .single();
+
+        if (parentSend?.message_id) {
+          headers["In-Reply-To"] = parentSend.message_id;
+          headers["References"] = parentSend.message_id;
+        }
+
+        // Get parent campaign subject for "Re:" prefix
+        const { data: parentCampaign } = await supabaseAdmin
+          .from("campaigns")
+          .select("subject")
+          .eq("id", campaign.parent_campaign_id)
+          .single();
+
+        const parentSubject = parentCampaign?.subject || "";
+        subject = parentSubject.startsWith("Re: ")
+          ? processSubject(parentSubject, contact)
+          : processSubject(`Re: ${parentSubject}`, contact);
+      } else {
+        const subjectText = variant === "B" && campaign.subject_b
+          ? campaign.subject_b
+          : campaign.subject;
+        subject = processSubject(subjectText, contact);
+      }
+
+      const sendPayload: any = {
         from: `${chosenSender.name} <${chosenSender.email}>`,
         to: [contact.email],
         subject,
         html,
-      });
+      };
+      if (Object.keys(headers).length > 0) {
+        sendPayload.headers = headers;
+      }
+
+      const { data: emailData, error: emailError } = await resend.emails.send(sendPayload);
 
       if (emailError) {
         await supabaseAdmin
@@ -288,10 +327,13 @@ export async function sendCampaign(
         continue;
       }
 
+      // Store resend_id and message_id (for future reply threading)
+      const messageId = (emailData as any)?.message_id || (emailData as any)?.messageId || null;
       await supabaseAdmin
         .from("sends")
         .update({
           resend_id: emailData?.id || null,
+          message_id: messageId,
           status: "sent",
           sent_at: new Date().toISOString(),
         })

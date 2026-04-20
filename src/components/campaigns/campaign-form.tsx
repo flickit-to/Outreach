@@ -56,6 +56,7 @@ export function CampaignForm({
   const parentCampaignId = searchParams.get("parent");
   const presetName = searchParams.get("name");
   const isSubCampaign = !!parentCampaignId;
+  const [sendAsReply, setSendAsReply] = useState(isSubCampaign);
 
   const {
     register,
@@ -91,13 +92,14 @@ export function CampaignForm({
       .insert({
         user_id: userId,
         name: data.name,
-        subject: data.subject,
+        subject: (isSubCampaign && sendAsReply) ? `Re: ${parentName.replace(" - Follow-up", "")}` : data.subject,
         subject_b: abEnabled ? data.subject_b || null : null,
         body: data.body,
         from_email_id: fromEmailId || null,
         list_id: isSubCampaign ? null : data.list_id || null,
         parent_campaign_id: parentCampaignId || null,
         trigger_engagement: isSubCampaign ? followupTrigger || null : null,
+        send_as_reply: isSubCampaign ? sendAsReply : false,
         send_days: sendDays,
         status: "scheduled",
         scheduled_at: sendNow
@@ -162,20 +164,48 @@ export function CampaignForm({
             <Input id="name" placeholder="Q1 Outreach" {...register("name")} />
             {errors.name && <p className="text-sm text-red-600">{errors.name.message}</p>}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="subject">Subject Line{abEnabled ? " A" : ""}</Label>
-            <Input id="subject" placeholder="Quick question about {{company}}" {...register("subject")} />
-            {errors.subject && <p className="text-sm text-red-600">{errors.subject.message}</p>}
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="ab-test" checked={abEnabled} onChange={(e) => setAbEnabled(e.target.checked)} className="h-4 w-4" />
-            <Label htmlFor="ab-test" className="cursor-pointer">Enable A/B Testing</Label>
-          </div>
-          {abEnabled && (
-            <div className="space-y-2">
-              <Label htmlFor="subject_b">Subject Line B</Label>
-              <Input id="subject_b" placeholder="Alternative subject..." {...register("subject_b")} />
-              <p className="text-xs text-muted-foreground">Recipients split 50/50</p>
+          {/* Reply mode toggle for follow-ups */}
+          {isSubCampaign && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border">
+              <input type="checkbox" id="send-as-reply" checked={sendAsReply} onChange={(e) => setSendAsReply(e.target.checked)} className="h-4 w-4" />
+              <div>
+                <Label htmlFor="send-as-reply" className="cursor-pointer text-sm font-medium">Send as reply to previous email</Label>
+                <p className="text-xs text-muted-foreground">
+                  {sendAsReply
+                    ? "Email will thread under the original conversation with \"Re:\" prefix"
+                    : "Email will be sent as a new conversation"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Subject line — hidden when sending as reply */}
+          {!(isSubCampaign && sendAsReply) && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject Line{abEnabled ? " A" : ""}</Label>
+                <Input id="subject" placeholder="Quick question about {{company}}" {...register("subject")} />
+                {errors.subject && <p className="text-sm text-red-600">{errors.subject.message}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="ab-test" checked={abEnabled} onChange={(e) => setAbEnabled(e.target.checked)} className="h-4 w-4" />
+                <Label htmlFor="ab-test" className="cursor-pointer">Enable A/B Testing</Label>
+              </div>
+              {abEnabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="subject_b">Subject Line B</Label>
+                  <Input id="subject_b" placeholder="Alternative subject..." {...register("subject_b")} />
+                  <p className="text-xs text-muted-foreground">Recipients split 50/50</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {isSubCampaign && sendAsReply && (
+            <div className="p-3 rounded-md bg-blue-50 border border-blue-200 text-sm text-blue-800">
+              Subject will be: <strong>Re: {parentName.replace(" - Follow-up", "")}</strong>
+              <br />
+              <span className="text-xs text-blue-600">Uses the parent campaign&apos;s subject with &quot;Re:&quot; prefix</span>
             </div>
           )}
           <div className="space-y-2">

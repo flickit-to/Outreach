@@ -28,7 +28,7 @@ export const contactSchema = z.object({
 
 export const campaignSchema = z.object({
   name: z.string().min(1, "Campaign name is required"),
-  subject: z.string().min(1, "Subject is required").max(200, "Subject too long"),
+  subject: z.string().max(200, "Subject too long"),
   subject_b: z.string().max(200).optional(),
   body: z.string().min(1, "Email body is required"),
   scheduled_at: z.string().optional(),

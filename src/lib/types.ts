@@ -35,6 +35,7 @@ export interface Campaign {
   list_id: string | null;
   parent_campaign_id: string | null;
   trigger_engagement: "opened" | "clicked" | "opened_or_clicked" | null;
+  send_as_reply: boolean;
   send_days: number[];
   status: CampaignStatus;
   created_at: string;
@@ -52,6 +53,7 @@ export interface Send {
   campaign_id: string;
   contact_id: string;
   resend_id: string | null;
+  message_id: string | null;
   sender_email_id: string | null;
   from_email_address: string | null;
   status: SendStatus;
