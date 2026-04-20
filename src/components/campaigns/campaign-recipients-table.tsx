@@ -13,6 +13,7 @@ import {
   Mail,
   ArrowUp,
   ArrowDown,
+  Copy,
 } from "lucide-react";
 
 interface SendWithDetails {
@@ -254,8 +255,17 @@ export function CampaignRecipientsTable({ sends, hasAB }: Props) {
                     <td className="py-1.5 px-2 border-r border-border/40 text-sm font-medium privacy-blur">
                       {[contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "—"}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-border/40 text-sm text-muted-foreground privacy-blur">
-                      {contact?.email}
+                    <td className="py-1.5 px-2 border-r border-border/40 text-sm text-muted-foreground">
+                      <span className="privacy-blur">{contact?.email}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(contact?.email || "");
+                        }}
+                        className="ml-1 opacity-0 group-hover:opacity-60 hover:!opacity-100 inline-flex"
+                        title="Copy email"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </button>
                     </td>
                     {senders.length > 1 && (
                       <td className="py-1.5 px-2 border-r border-border/40 text-xs text-muted-foreground privacy-blur">

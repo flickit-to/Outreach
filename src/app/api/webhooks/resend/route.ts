@@ -47,19 +47,26 @@ export async function POST(request: NextRequest) {
 
       case "email.bounced":
       case "email.complained": {
+        // Bounce ALWAYS overrides any status (even opened/clicked from Gmail proxy)
         await supabase
           .from("sends")
           .update({
             status: "bounced",
             bounced_at: new Date().toISOString(),
+            opened_at: null,
+            clicked_at: null,
           })
           .eq("id", send.id);
 
         await supabase.from("events").insert({
           send_id: send.id,
           type: "bounced",
-          metadata: { reason: data.bounce?.type || data.complaint?.type || "unknown" },
+          metadata: { reason: data.bounce?.message || data.bounce?.type || data.complaint?.type || "unknown" },
         });
+
+        // Reset contact lead_stage if it was auto-advanced by fake open
+        await supabase.rpc("recalculate_contact_status", { p_contact_id: send.contact_id });
+
         break;
       }
 
