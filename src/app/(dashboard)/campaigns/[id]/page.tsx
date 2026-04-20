@@ -7,7 +7,6 @@ import { CampaignRecipientsTable } from "@/components/campaigns/campaign-recipie
 import { TimeToOpenCard } from "@/components/campaigns/time-to-open-card";
 import { CampaignActions } from "@/components/campaigns/campaign-actions";
 import { CampaignCountdown } from "@/components/campaigns/campaign-countdown";
-import { CreateFollowupDialog } from "@/components/campaigns/create-followup-dialog";
 import { ClientDateTime } from "@/components/ui/client-date-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,9 +80,8 @@ export default async function CampaignDetailPage({
   const sendsList = sends || [];
 
   // Counts for the Create Follow-up dialog (only for main campaigns)
-  const openedCount = sendsList.filter((s) => ["opened", "clicked", "replied"].includes(s.status)).length;
-  const clickedCount = sendsList.filter((s) => s.status === "clicked").length;
-  const openedOrClickedCount = openedCount; // since opened includes clicked
+  // openedCount used for checking if follow-up button should show
+  const hasEngagement = sendsList.some((s) => ["opened", "clicked", "replied"].includes(s.status));
   const totalRecipients = totalCampaignContacts || 0;
   const totalSent = sendsList.filter((s) => !["pending", "failed"].includes(s.status)).length;
   const totalDelivered = sendsList.filter((s) => ["delivered", "opened", "clicked", "replied"].includes(s.status)).length;
@@ -157,14 +155,13 @@ export default async function CampaignDetailPage({
               </Button>
             </Link>
           )}
-          {isMainCampaign && totalSent > 0 && (
-            <CreateFollowupDialog
-              parentCampaignId={params.id}
-              parentName={(campaign as Campaign).name}
-              openedCount={openedCount}
-              clickedCount={clickedCount}
-              openedOrClickedCount={openedOrClickedCount}
-            />
+          {isMainCampaign && (totalSent > 0 || hasEngagement) && (
+            <Link href={`/campaigns/new?parent=${params.id}&name=${encodeURIComponent((campaign as Campaign).name + " - Follow-up")}`}>
+              <Button variant="outline" size="sm">
+                <GitBranch className="h-4 w-4 mr-2" />
+                Create Follow-up
+              </Button>
+            </Link>
           )}
           <CampaignActions
             campaignId={params.id}
