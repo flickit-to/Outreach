@@ -58,12 +58,13 @@ export default async function NewCampaignPage({
       .order("sent_at");
 
     parentSends = (sends || [])
-      .filter((s: any) => s.contacts && !["replied", "meeting_booked", "closed_won", "closed_lost"].includes(s.contacts.lead_stage))
+      .filter((s: any) => s.contacts)
       .map((s: any) => ({
         contactId: s.contact_id,
         contactName: [s.contacts?.first_name, s.contacts?.last_name].filter(Boolean).join(" "),
         contactEmail: s.contacts?.email || "",
         status: s.status,
+        leadStage: s.contacts?.lead_stage || "new_lead",
         sentAt: s.sent_at,
         day: s.sent_at ? new Date(s.sent_at).toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" }) : "",
       }));

@@ -23,6 +23,7 @@ interface ParentSendData {
   contactName: string;
   contactEmail: string;
   status: string;
+  leadStage?: string;
   sentAt: string;
   day: string;
 }
