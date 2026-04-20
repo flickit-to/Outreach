@@ -98,6 +98,32 @@ export async function POST(request: NextRequest) {
         });
         break;
       }
+
+      case "email.replied": {
+        // Auto-detect reply via Resend webhook
+        await supabase
+          .from("sends")
+          .update({
+            status: "replied",
+            replied_at: new Date().toISOString(),
+          })
+          .eq("id", send.id);
+
+        await supabase.from("events").insert({
+          send_id: send.id,
+          type: "replied",
+          metadata: { source: "resend_webhook" },
+        });
+
+        // Auto-advance lead stage to "replied"
+        await supabase
+          .from("contacts")
+          .update({ lead_stage: "replied" })
+          .eq("id", send.contact_id)
+          .in("lead_stage", ["new_lead", "email_sent", "opened", "follow_up_needed", "follow_up_sent"]);
+
+        break;
+      }
     }
 
     // Recalculate contact status
