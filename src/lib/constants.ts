@@ -4,6 +4,9 @@ import {
   Building2,
   List,
   Mail,
+  GitBranch,
+  Megaphone,
+  Zap,
   Settings,
 } from "lucide-react";
 
@@ -15,7 +18,25 @@ export const NAV_ITEMS = [
   { label: "Companies", href: "/companies", icon: Building2 },
   { label: "Lists", href: "/lists", icon: List },
   { label: "Campaigns", href: "/campaigns", icon: Mail },
+  { label: "Sequences", href: "/sequences", icon: GitBranch, badge: "v2" },
+  { label: "Broadcasts", href: "/broadcasts", icon: Megaphone, badge: "v2" },
+  { label: "Automations", href: "/automations", icon: Zap, badge: "v2" },
   { label: "Settings", href: "/settings", icon: Settings },
+] as const;
+
+export const SEQUENCE_STATUSES = [
+  { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-800" },
+  { value: "active", label: "Active", color: "bg-green-100 text-green-800" },
+  { value: "paused", label: "Paused", color: "bg-yellow-100 text-yellow-800" },
+  { value: "archived", label: "Archived", color: "bg-gray-100 text-gray-500" },
+] as const;
+
+export const STEP_CONDITION_TRIGGERS = [
+  { value: "opened", label: "Opened" },
+  { value: "clicked", label: "Clicked" },
+  { value: "opened_or_clicked", label: "Opened OR Clicked" },
+  { value: "replied", label: "Replied" },
+  { value: "not_opened", label: "Did NOT open" },
 ] as const;
 
 export const CONTACT_STATUSES = [

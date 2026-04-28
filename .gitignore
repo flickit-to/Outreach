@@ -34,3 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+notes-urls-backup.txt
+
+# database backups (contain PII)
+/backups

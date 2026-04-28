@@ -60,6 +60,45 @@ export const importRowSchema = z.object({
   tags: z.string().optional().default(""),
 });
 
+// =============================================================================
+// v2: Sequences
+// =============================================================================
+
+export const sequenceStepSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("email"),
+    subject: z.string().min(1, "Subject is required").max(200),
+    subject_b: z.string().max(200).optional(),
+    body: z.string().min(1, "Email body is required"),
+    send_as_reply: z.boolean().default(false),
+  }),
+  z.object({
+    type: z.literal("wait"),
+    delay_days: z.number().min(0).max(365),
+    delay_hours: z.number().min(0).max(23).optional(),
+  }),
+  z.object({
+    type: z.literal("condition"),
+    triggers: z
+      .array(z.enum(["opened", "clicked", "opened_or_clicked", "replied", "not_opened"]))
+      .min(1, "Pick at least one trigger"),
+    within_days: z.number().min(1).max(60),
+    on_false: z.enum(["end", "continue"]).default("end"),
+  }),
+]);
+
+export const sequenceSchema = z.object({
+  name: z.string().min(1, "Sequence name is required").max(120),
+  list_id: z.string().uuid().nullable().optional(),
+  from_email_id: z.string().uuid().nullable().optional(),
+  send_days: z.array(z.number().min(0).max(6)).default([1, 2, 3, 4, 5]),
+  scheduled_at: z.string().optional().nullable(),
+  steps: z.array(sequenceStepSchema).min(1, "Add at least one step"),
+});
+
+export type SequenceStepInput = z.infer<typeof sequenceStepSchema>;
+export type SequenceInput = z.infer<typeof sequenceSchema>;
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ContactInput = z.infer<typeof contactSchema>;

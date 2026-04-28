@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "@/lib/constants";
 import { Mail } from "lucide-react";
 
+type NavItem = (typeof NAV_ITEMS)[number] & { badge?: string };
+
 export function Sidebar() {
   const pathname = usePathname();
 
@@ -16,7 +18,7 @@ export function Sidebar() {
         <span className="text-lg font-semibold">Outreach</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV_ITEMS.map((item) => {
+        {(NAV_ITEMS as readonly NavItem[]).map((item) => {
           const isActive =
             item.href === "/"
               ? pathname === "/"
@@ -33,7 +35,12 @@ export function Sidebar() {
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.badge && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/15 text-primary">
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}

@@ -167,3 +167,133 @@ export interface ContactActivity {
   send: Send;
   campaign: Campaign;
 }
+
+// =============================================================================
+// v2: Sequences / Broadcasts / Automations
+// =============================================================================
+
+export type SequenceStatus = "draft" | "active" | "paused" | "archived";
+export type StepType = "email" | "wait" | "condition";
+export type ConditionTrigger =
+  | "opened"
+  | "clicked"
+  | "opened_or_clicked"
+  | "replied"
+  | "not_opened";
+export type EnrollmentStatus =
+  | "active"
+  | "paused"
+  | "completed"
+  | "exited"
+  | "unsubscribed";
+
+export interface Sequence {
+  id: string;
+  user_id: string;
+  name: string;
+  status: SequenceStatus;
+  list_id: string | null;
+  from_email_id: string | null;
+  send_days: number[];
+  scheduled_at: string | null;
+  legacy_campaign_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SequenceStep {
+  id: string;
+  sequence_id: string;
+  step_order: number;
+  type: StepType;
+  // email
+  subject: string | null;
+  subject_b: string | null;
+  body: string | null;
+  send_as_reply: boolean;
+  // wait
+  delay_days: number | null;
+  delay_hours: number | null;
+  // condition
+  triggers: ConditionTrigger[] | null;
+  within_days: number | null;
+  on_true_step_id: string | null;
+  on_false_step_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Enrollment {
+  id: string;
+  sequence_id: string;
+  contact_id: string;
+  current_step_id: string | null;
+  status: EnrollmentStatus;
+  next_run_at: string | null;
+  enrolled_at: string;
+  completed_at: string | null;
+  exit_reason: string | null;
+}
+
+export interface SequenceWithStats extends Sequence {
+  total_enrollments: number;
+  active_enrollments: number;
+  step_count: number;
+}
+
+export interface SequenceWithSteps extends Sequence {
+  steps: SequenceStep[];
+}
+
+// Broadcasts and Automations placeholders — fleshed out in later phases.
+export type BroadcastStatus = "draft" | "scheduled" | "sending" | "sent" | "cancelled";
+export interface Broadcast {
+  id: string;
+  user_id: string;
+  name: string;
+  subject: string;
+  body: string;
+  list_id: string | null;
+  segment_filter: Record<string, unknown>;
+  from_email_id: string | null;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  status: BroadcastStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AutomationStatus = "active" | "paused" | "archived";
+export type AutomationTriggerType =
+  | "list_joined"
+  | "stage_changed"
+  | "tag_added"
+  | "email_opened"
+  | "email_clicked"
+  | "email_not_opened"
+  | "replied"
+  | "manual"
+  | "schedule";
+export type AutomationActionType =
+  | "enroll_in_sequence"
+  | "enroll_in_broadcast"
+  | "set_lead_stage"
+  | "add_tag"
+  | "remove_tag"
+  | "add_to_list"
+  | "remove_from_list"
+  | "exit_sequence"
+  | "notify_user";
+
+export interface Automation {
+  id: string;
+  user_id: string;
+  name: string;
+  status: AutomationStatus;
+  trigger_type: AutomationTriggerType;
+  trigger_config: Record<string, unknown>;
+  action_type: AutomationActionType;
+  action_config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
