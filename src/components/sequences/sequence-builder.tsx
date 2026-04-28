@@ -14,7 +14,6 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { SendDaysPicker } from "@/components/campaigns/send-days-picker";
 import { STEP_CONDITION_TRIGGERS } from "@/lib/constants";

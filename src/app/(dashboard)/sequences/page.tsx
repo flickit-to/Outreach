@@ -76,7 +76,7 @@ export default async function SequencesPage() {
         </Link>
       </div>
       <p className="text-sm text-muted-foreground mb-6">
-        Multi-step cold outreach with conditional branching. Replaces "Campaigns" once you're happy with it.
+        Multi-step cold outreach with conditional branching. Replaces &ldquo;Campaigns&rdquo; once you&rsquo;re happy with it.
       </p>
 
       {rows.length === 0 ? (
