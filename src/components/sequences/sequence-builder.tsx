@@ -178,21 +178,26 @@ export function SequenceBuilder({
       send_days: sendDays,
       steps: steps as never, // discriminated union — server re-validates
     };
-    const result = isEdit
-      ? await updateSequence(initial!.id, payload)
-      : await createSequence(payload);
-    setSaving(false);
-    if (!result.ok) {
-      toast({ title: "Save failed", description: result.error, variant: "destructive" });
-      return;
-    }
+
     if (isEdit) {
+      const r = await updateSequence(initial!.id, payload);
+      setSaving(false);
+      if (!r.ok) {
+        toast({ title: "Save failed", description: r.error, variant: "destructive" });
+        return;
+      }
       toast({ title: "Sequence updated", description: `${steps.length} steps saved.` });
       router.push(`/sequences/${initial!.id}`);
       router.refresh();
     } else {
+      const r = await createSequence(payload);
+      setSaving(false);
+      if (!r.ok) {
+        toast({ title: "Save failed", description: r.error, variant: "destructive" });
+        return;
+      }
       toast({ title: "Sequence created", description: `${steps.length} steps saved as draft.` });
-      router.push(`/sequences/${(result as { id: string }).id}`);
+      router.push(`/sequences/${r.id}`);
     }
   };
 
