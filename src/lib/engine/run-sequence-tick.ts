@@ -254,45 +254,21 @@ async function sendEmailStep({
     .eq("user_id", sequence.user_id)
     .maybeSingle();
 
-  // Pick sender. If sequence has from_email_id, use it. Else use first
-  // sender_email for user. Else fall back to settings.from_email.
-  let senderId: string | null = null;
-  let senderEmail: string | null = null;
-  let senderName: string | null = null;
-  if (sequence.from_email_id) {
-    const { data } = await sb
-      .from("sender_emails")
-      .select("*")
-      .eq("id", sequence.from_email_id)
-      .maybeSingle();
-    if (data) {
-      senderId = data.id;
-      senderEmail = data.email;
-      senderName = data.name;
-    }
-  }
-  if (!senderEmail) {
-    const { data } = await sb
-      .from("sender_emails")
-      .select("*")
-      .eq("user_id", sequence.user_id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (data) {
-      senderId = data.id;
-      senderEmail = data.email;
-      senderName = data.name;
-    }
-  }
-  if (!senderEmail && settings?.from_email) {
-    senderEmail = settings.from_email;
-    senderName = settings.from_name || "Outreach";
-  }
-  if (!senderEmail) {
+  const senderResult = await pickSender({ sb, sequence, contact, settings });
+  if (senderResult.kind === "no_sender") {
     const next = nextSendDayAt9am(sequence.send_days);
     return { kind: "deferred", reason: "no_sender_configured", next_run_at: next.toISOString() };
   }
+  if (senderResult.kind === "deferred") {
+    return {
+      kind: "deferred",
+      reason: senderResult.reason,
+      next_run_at: senderResult.until.toISOString(),
+    };
+  }
+  const senderId = senderResult.senderId;
+  const senderEmail = senderResult.email;
+  const senderName = senderResult.name;
 
   const dryRun = !settings?.resend_api_key;
 
@@ -412,6 +388,131 @@ async function sendEmailStep({
   }
 
   return { kind: "sent", sendId: sendRow.id };
+}
+
+// ─── Sender selection (sticky-first) ───────────────────────────────────────
+// Hard rule: a contact's first non-virtual sender becomes their sticky sender,
+// and ALL future emails to that contact go from that sender. Never rotate
+// mid-relationship. If the sticky sender is at capacity, defer the enrollment
+// rather than sending from a different address.
+type SenderPickResult =
+  | { kind: "ok"; senderId: string | null; email: string; name: string; sticky: boolean }
+  | { kind: "deferred"; reason: string; until: Date }
+  | { kind: "no_sender" };
+
+async function capacityRemaining(
+  sb: SupabaseClient,
+  senderId: string,
+  dailyLimit: number,
+): Promise<number> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count } = await sb
+    .from("sends")
+    .select("*", { count: "exact", head: true })
+    .eq("sender_email_id", senderId)
+    .gte("sent_at", since)
+    .neq("status", "failed");
+  return Math.max(0, dailyLimit - (count || 0));
+}
+
+async function pickSender({
+  sb,
+  sequence,
+  contact,
+  settings,
+}: {
+  sb: SupabaseClient;
+  sequence: any;
+  contact: any;
+  settings: any;
+}): Promise<SenderPickResult> {
+  const tomorrow = nextSendDayAt9am(sequence.send_days);
+
+  // 1. STICKY ENFORCEMENT — contact already locked to a sender
+  if (contact.assigned_sender_id) {
+    const { data: sticky } = await sb
+      .from("sender_emails")
+      .select("*")
+      .eq("id", contact.assigned_sender_id)
+      .eq("user_id", sequence.user_id)
+      .maybeSingle();
+    if (sticky) {
+      const limit = sticky.daily_limit ?? 50;
+      const remaining = await capacityRemaining(sb, sticky.id, limit);
+      if (remaining > 0) {
+        return {
+          kind: "ok",
+          senderId: sticky.id,
+          email: sticky.email,
+          name: sticky.name,
+          sticky: true,
+        };
+      }
+      return { kind: "deferred", reason: "sticky_sender_at_capacity", until: tomorrow };
+    }
+    // Sticky sender record gone — fall through to re-pick + re-assign
+  }
+
+  // 2. Build candidate set. Sequence preference first, otherwise all senders.
+  let candidates: any[] = [];
+  if (sequence.from_email_id) {
+    const { data } = await sb
+      .from("sender_emails")
+      .select("*")
+      .eq("id", sequence.from_email_id)
+      .eq("user_id", sequence.user_id);
+    if (data && data.length) candidates = data;
+  }
+  if (candidates.length === 0) {
+    const { data } = await sb
+      .from("sender_emails")
+      .select("*")
+      .eq("user_id", sequence.user_id)
+      .order("created_at", { ascending: true });
+    candidates = data || [];
+  }
+
+  // 3. No sender_emails configured → fall back to settings.from_email (virtual,
+  //    never sticky-assigned because we can't reference it by id later)
+  if (candidates.length === 0) {
+    if (settings?.from_email) {
+      return {
+        kind: "ok",
+        senderId: null,
+        email: settings.from_email,
+        name: settings.from_name || "Outreach",
+        sticky: false,
+      };
+    }
+    return { kind: "no_sender" };
+  }
+
+  // 4. Pick sender with most remaining capacity (load balance, deterministic
+  //    tiebreak by created_at order which we already pulled in).
+  let best: { sender: any; remaining: number } | null = null;
+  for (const c of candidates) {
+    const limit = c.daily_limit ?? 50;
+    const remaining = await capacityRemaining(sb, c.id, limit);
+    if (remaining <= 0) continue;
+    if (!best || remaining > best.remaining) best = { sender: c, remaining };
+  }
+  if (!best) {
+    return { kind: "deferred", reason: "all_senders_at_capacity", until: tomorrow };
+  }
+
+  // 5. Lock-in: from now on this contact is assigned to this sender, forever
+  await sb
+    .from("contacts")
+    .update({ assigned_sender_id: best.sender.id })
+    .eq("id", contact.id);
+
+  return {
+    kind: "ok",
+    senderId: best.sender.id,
+    email: best.sender.email,
+    name: best.sender.name,
+    sticky: false,
+  };
 }
 
 // ─── Condition evaluation ──────────────────────────────────────────────────

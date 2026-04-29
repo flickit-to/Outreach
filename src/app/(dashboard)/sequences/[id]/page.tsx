@@ -214,12 +214,19 @@ async function EnrollmentsTable({ sequenceId }: { sequenceId: string }) {
     .from("enrollments")
     .select(
       `id, status, current_step_id, next_run_at, enrolled_at, completed_at, exit_reason,
-       contacts:contact_id(id, email, first_name, last_name, lead_stage),
+       contacts:contact_id(id, email, first_name, last_name, lead_stage, assigned_sender_id),
        step:current_step_id(step_order, type)`,
     )
     .eq("sequence_id", sequenceId)
     .order("enrolled_at", { ascending: false })
     .limit(50);
+
+  // Lookup map for sticky sender display
+  const { data: senders } = await supabase
+    .from("sender_emails")
+    .select("id, email");
+  const senderById = new Map<string, string>();
+  for (const s of senders || []) senderById.set(s.id, s.email);
 
   if (!enrollments || enrollments.length === 0) {
     return (
@@ -266,6 +273,7 @@ async function EnrollmentsTable({ sequenceId }: { sequenceId: string }) {
               <TableHead>Current step</TableHead>
               <TableHead>Next run</TableHead>
               <TableHead>Lead stage</TableHead>
+              <TableHead>Locked sender</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -280,6 +288,9 @@ async function EnrollmentsTable({ sequenceId }: { sequenceId: string }) {
                 : e.status === "exited" ? "bg-gray-100 text-gray-700"
                 : e.status === "paused" ? "bg-yellow-100 text-yellow-800"
                 : "bg-gray-100 text-gray-700";
+              const lockedSenderEmail = c?.assigned_sender_id
+                ? senderById.get(c.assigned_sender_id)
+                : null;
               return (
                 <TableRow key={e.id}>
                   <TableCell>
@@ -303,6 +314,13 @@ async function EnrollmentsTable({ sequenceId }: { sequenceId: string }) {
                   <TableCell className="text-xs font-mono">{stepLabel}</TableCell>
                   <TableCell className="text-xs">{fmtRelative(e.next_run_at)}</TableCell>
                   <TableCell className="text-xs">{c?.lead_stage}</TableCell>
+                  <TableCell className="text-xs">
+                    {lockedSenderEmail ? (
+                      <span className="font-mono text-muted-foreground">{lockedSenderEmail}</span>
+                    ) : (
+                      <span className="text-muted-foreground italic">unassigned</span>
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}
