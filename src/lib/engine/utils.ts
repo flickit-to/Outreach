@@ -10,6 +10,7 @@ const AUTO_EXIT_LEAD_STAGES = [
   "meeting_booked",
   "closed_won",
   "closed_lost",
+  "bounced",
 ] as const;
 
 export function isAutoExitLeadStage(stage: string | null | undefined): boolean {

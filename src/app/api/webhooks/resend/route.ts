@@ -64,7 +64,15 @@ export async function POST(request: NextRequest) {
           metadata: { reason: data.bounce?.message || data.bounce?.type || data.complaint?.type || "unknown" },
         });
 
-        // Reset contact lead_stage if it was auto-advanced by fake open
+        // Mark contact as bounced — terminal lead_stage that auto-exits
+        // any active sequence enrollment and suppresses future sends.
+        // Don't overwrite if already at a closed/won/replied terminal state.
+        await supabase
+          .from("contacts")
+          .update({ lead_stage: "bounced" })
+          .eq("id", send.contact_id)
+          .not("lead_stage", "in", "(replied,meeting_booked,closed_won,closed_lost)");
+
         await supabase.rpc("recalculate_contact_status", { p_contact_id: send.contact_id });
 
         break;

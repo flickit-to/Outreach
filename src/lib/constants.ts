@@ -58,6 +58,7 @@ export const LEAD_STAGES = [
   { value: "meeting_booked", label: "Meeting Booked", color: "bg-purple-100 text-purple-800", action: "Prepare for meeting" },
   { value: "closed_won", label: "Closed (Won)", color: "bg-emerald-100 text-emerald-800", action: "Onboard" },
   { value: "closed_lost", label: "Closed (Lost)", color: "bg-red-100 text-red-800", action: "" },
+  { value: "bounced", label: "Bounced", color: "bg-red-100 text-red-800", action: "Suppressed — email is undeliverable" },
 ] as const;
 
 export const CAMPAIGN_STATUSES = [

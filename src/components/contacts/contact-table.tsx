@@ -140,8 +140,12 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
         (c.company && c.company.toLowerCase().includes(search.toLowerCase())) ||
         (c.role && c.role.toLowerCase().includes(search.toLowerCase()));
 
-      // Stage tab filter
-      const matchesStage = stageFilter === "all" || c.lead_stage === stageFilter;
+      // Stage tab filter. "All" hides bounced — bounced contacts are only
+      // visible when the user explicitly selects the Bounced tab.
+      const matchesStage =
+        stageFilter === "all"
+          ? c.lead_stage !== "bounced"
+          : c.lead_stage === stageFilter;
 
       // Column filters
       let matchesColumnFilters = true;
@@ -329,7 +333,7 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          All Contacts <span className="text-xs text-muted-foreground">{contacts.length}</span>
+          All Contacts <span className="text-xs text-muted-foreground">{contacts.filter((c) => c.lead_stage !== "bounced").length}</span>
         </button>
         {stageCounts.filter((s) => s.count > 0).map((stage) => (
           <button

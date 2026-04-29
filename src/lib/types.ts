@@ -1,5 +1,5 @@
 export type ContactStatus = "not_contacted" | "sent" | "delivered" | "opened" | "clicked" | "bounced";
-export type LeadStage = "new_lead" | "email_sent" | "opened" | "follow_up_needed" | "follow_up_sent" | "replied" | "meeting_booked" | "closed_won" | "closed_lost";
+export type LeadStage = "new_lead" | "email_sent" | "opened" | "follow_up_needed" | "follow_up_sent" | "replied" | "meeting_booked" | "closed_won" | "closed_lost" | "bounced";
 export type CampaignStatus = "draft" | "scheduled" | "sending" | "sent" | "cancelled";
 export type SendStatus = "pending" | "sent" | "delivered" | "opened" | "clicked" | "bounced" | "failed" | "replied";
 export type EventType = "sent" | "delivered" | "opened" | "clicked" | "bounced" | "replied";

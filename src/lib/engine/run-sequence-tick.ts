@@ -247,6 +247,21 @@ async function sendEmailStep({
     return { kind: "failed", reason: "missing_subject_or_body" };
   }
 
+  // Email-level bounce suppression: if ANY contact owned by this user with the
+  // same email address has previously bounced, refuse to send. Survives
+  // duplicate-contact rows where the bounce is recorded against an old row but
+  // the new row (e.g. from a CSV re-import) looks pristine. Hard bounces mean
+  // the address is dead — re-sending burns sender reputation.
+  if (await hasEmailEverBouncedForUser(sb, sequence.user_id, contact.email)) {
+    // Mark this contact row as bounced too so the engine auto-exits it next tick.
+    await sb
+      .from("contacts")
+      .update({ lead_stage: "bounced" })
+      .eq("id", contact.id)
+      .not("lead_stage", "in", "(replied,meeting_booked,closed_won,closed_lost)");
+    return { kind: "failed", reason: "email_previously_bounced" };
+  }
+
   // Settings + sender
   const { data: settings } = await sb
     .from("settings")
@@ -388,6 +403,31 @@ async function sendEmailStep({
   }
 
   return { kind: "sent", sendId: sendRow.id };
+}
+
+// ─── Email-level bounce suppression ────────────────────────────────────────
+// Returns true if any contact owned by this user with the same email address
+// has at least one bounced send. Case-insensitive on email.
+async function hasEmailEverBouncedForUser(
+  sb: SupabaseClient,
+  userId: string,
+  email: string,
+): Promise<boolean> {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  const { data: matches } = await sb
+    .from("contacts")
+    .select("id")
+    .eq("user_id", userId)
+    .ilike("email", normalized);
+  const ids = (matches || []).map((c: any) => c.id);
+  if (ids.length === 0) return false;
+  const { count } = await sb
+    .from("sends")
+    .select("*", { count: "exact", head: true })
+    .in("contact_id", ids)
+    .eq("status", "bounced");
+  return (count || 0) > 0;
 }
 
 // ─── Sender selection (sticky-first) ───────────────────────────────────────
