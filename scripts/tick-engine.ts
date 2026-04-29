@@ -4,6 +4,7 @@
 //
 // Run:
 //   npx tsx --env-file=.env.production.local scripts/tick-engine.ts
+//   npx tsx --env-file=.env.production.local scripts/tick-engine.ts --reset-due
 
 import { createClient } from "@supabase/supabase-js";
 import { runEnrollmentTick } from "../src/lib/engine/run-sequence-tick";
@@ -15,10 +16,23 @@ const sb = createClient(
 );
 
 const SEQUENCE_ID = "126b442b-d806-4f7f-91c1-dae335c083d0";
-const MAX_TICKS = 50;
+const MAX_TICKS = 200;
 
 async function main() {
-  console.log(`\nTicking sequence ${SEQUENCE_ID} (max ${MAX_TICKS})\n`);
+  const resetDue = process.argv.includes("--reset-due");
+
+  if (resetDue) {
+    const now = new Date().toISOString();
+    const { count } = await sb
+      .from("enrollments")
+      .update({ next_run_at: now }, { count: "exact" })
+      .eq("sequence_id", SEQUENCE_ID)
+      .eq("status", "active")
+      .gt("next_run_at", now);
+    console.log(`\nReset ${count || 0} active+deferred enrollments to next_run_at = now\n`);
+  }
+
+  console.log(`Ticking sequence ${SEQUENCE_ID} (max ${MAX_TICKS})\n`);
 
   const tally: Record<string, number> = {};
   for (let i = 0; i < MAX_TICKS; i++) {
@@ -36,9 +50,10 @@ async function main() {
     }
     try {
       const r = await runEnrollmentTick(due[0] as never, sb);
-      tally[r.kind] = (tally[r.kind] || 0) + 1;
-      if (i < 5 || i % 10 === 0) {
-        console.log(`  tick ${i + 1}: ${r.kind}${("reason" in r ? ` (${r.reason})` : "")}`);
+      const key = "reason" in r ? `${r.kind}:${r.reason}` : r.kind;
+      tally[key] = (tally[key] || 0) + 1;
+      if (i < 3 || i % 20 === 0) {
+        console.log(`  tick ${i + 1}: ${key}`);
       }
     } catch (e: any) {
       tally["error"] = (tally["error"] || 0) + 1;
@@ -47,13 +62,34 @@ async function main() {
   }
 
   console.log(`\nTally:`);
-  for (const [k, v] of Object.entries(tally)) console.log(`  ${k}: ${v}`);
+  for (const [k, v] of Object.entries(tally).sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${v.toString().padStart(4)}  ${k}`);
+  }
 
   const { count: sentCount } = await sb
     .from("sends")
     .select("*", { count: "exact", head: true })
     .eq("sequence_id", SEQUENCE_ID);
-  console.log(`\nTotal sends now: ${sentCount}\n`);
+
+  const { data: bySender } = await sb
+    .from("sends")
+    .select("from_email_address, status")
+    .eq("sequence_id", SEQUENCE_ID);
+  const senderTally: Record<string, number> = {};
+  const statusTally: Record<string, number> = {};
+  for (const s of bySender || []) {
+    senderTally[s.from_email_address || "(null)"] = (senderTally[s.from_email_address || "(null)"] || 0) + 1;
+    statusTally[s.status] = (statusTally[s.status] || 0) + 1;
+  }
+  console.log(`\nTotal sends now: ${sentCount}`);
+  if (Object.keys(senderTally).length) {
+    console.log(`By from_email_address:`);
+    for (const [a, n] of Object.entries(senderTally)) console.log(`  ${n.toString().padStart(3)}  ${a}`);
+  }
+  if (Object.keys(statusTally).length) {
+    console.log(`By status:`);
+    for (const [a, n] of Object.entries(statusTally)) console.log(`  ${n.toString().padStart(3)}  ${a}`);
+  }
 }
 
 main().catch((e) => {
