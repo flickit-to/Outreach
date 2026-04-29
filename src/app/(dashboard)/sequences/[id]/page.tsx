@@ -191,9 +191,8 @@ export default async function SequenceDetailPage({
                           </Badge>
                           {i < (step.triggers || []).length - 1 && " or "}
                         </span>
-                      ))}{" "}
-                      within <span className="font-medium">{step.within_days}</span> days, continue.
-                      Otherwise, end sequence.
+                      ))}
+                      , continue. Otherwise, end sequence.
                     </div>
                   )}
                 </div>

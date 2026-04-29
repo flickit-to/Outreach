@@ -489,20 +489,10 @@ function ConditionStepEditor({
           })}
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm">within</span>
-        <Input
-          type="number"
-          min={1}
-          max={60}
-          value={step.within_days}
-          onChange={(e) => onChange({ within_days: Number(e.target.value) })}
-          className="w-20"
-        />
-        <span className="text-sm">days, continue. Otherwise, end sequence.</span>
-      </div>
       <p className="text-[11px] text-muted-foreground">
-        Multiple triggers = OR (any one matches). v1: branch ends if condition fails.
+        If true, continue to the next step. Otherwise, end the sequence.
+        Multiple triggers = OR (any one matches). Use a Wait step before this
+        condition to control when it&apos;s evaluated.
       </p>
     </div>
   );

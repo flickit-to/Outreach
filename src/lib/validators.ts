@@ -82,7 +82,10 @@ export const sequenceStepSchema = z.discriminatedUnion("type", [
     triggers: z
       .array(z.enum(["opened", "clicked", "opened_or_clicked", "replied", "not_opened", "not_replied"]))
       .min(1, "Pick at least one trigger"),
-    within_days: z.number().min(1).max(60),
+    // within_days is no longer used by the engine — timing is the Wait step's
+    // job. Kept in the schema as optional for backwards compatibility with
+    // existing sequence_steps rows that still have a value.
+    within_days: z.number().min(1).max(60).optional(),
     on_false: z.enum(["end", "continue"]).default("end"),
   }),
 ]);

@@ -556,6 +556,10 @@ async function pickSender({
 }
 
 // ─── Condition evaluation ──────────────────────────────────────────────────
+// Conditions are evaluated against ALL of this contact's prior-step sends in
+// this sequence. Timing is the Wait step's job — by the time evaluation runs,
+// the user has already decided "wait long enough" with a Wait step in front of
+// the condition. So we don't apply a time window here.
 async function evaluateCondition({
   sb,
   enrollment,
@@ -568,8 +572,6 @@ async function evaluateCondition({
   sequenceId: string;
 }): Promise<boolean> {
   const triggers = step.triggers || [];
-  const windowMs = (step.within_days || 7) * 86_400_000;
-  const since = new Date(Date.now() - windowMs).toISOString();
 
   // Find prior email steps in this sequence (step_order < this step's)
   const { data: priorEmailSteps } = await sb
@@ -581,14 +583,13 @@ async function evaluateCondition({
   const priorEmailStepIds = (priorEmailSteps || []).map((s: any) => s.id);
   if (priorEmailStepIds.length === 0) return false;
 
-  // Find this contact's sends from those steps within the window
+  // Pull all of this contact's sends from those steps — no time filter.
   const { data: sends } = await sb
     .from("sends")
     .select("status, opened_at, clicked_at, replied_at, sent_at")
     .eq("contact_id", enrollment.contact_id)
     .eq("sequence_id", sequenceId)
-    .in("sequence_step_id", priorEmailStepIds)
-    .gte("sent_at", since);
+    .in("sequence_step_id", priorEmailStepIds);
 
   if (!sends || sends.length === 0) return false;
 
@@ -598,7 +599,6 @@ async function evaluateCondition({
     (t) => t !== "not_opened" && t !== "not_replied",
   );
 
-  // Positive triggers: at least one matches → true
   const matchSend = (s: any, trigger: string): boolean => {
     switch (trigger) {
       case "opened":
@@ -613,35 +613,28 @@ async function evaluateCondition({
     }
   };
 
+  // Positive triggers: at least one prior send matches → true
   for (const t of positiveTriggers) {
     if (sends.some((s: any) => matchSend(s, t))) return true;
   }
 
-  // not_opened: matches if there's a send with status in [sent, delivered] and
-  // no opened/clicked/replied event AND it's been at least within_days since sent
+  // not_opened: at least one prior send with no open/click/reply event
   if (wantsNotOpened) {
-    const cutoff = new Date(Date.now() - (step.within_days || 7) * 86_400_000);
     const stale = sends.some(
       (s: any) =>
         ["sent", "delivered"].includes(s.status) &&
-        !s.opened_at && !s.clicked_at && !s.replied_at &&
-        s.sent_at &&
-        new Date(s.sent_at) <= cutoff,
+        !s.opened_at && !s.clicked_at && !s.replied_at,
     );
     if (stale) return true;
   }
 
-  // not_replied: matches if a prior send exists, has no reply, AND it's been
-  // at least within_days since sent. Opens/clicks count as engagement but NOT
-  // as a reply, so an opened-but-unreplied send still triggers this.
+  // not_replied: at least one prior send with no reply (opens/clicks don't count
+  // as a reply, so an opened-but-unreplied send still satisfies this).
   if (wantsNotReplied) {
-    const cutoff = new Date(Date.now() - (step.within_days || 7) * 86_400_000);
     const stale = sends.some(
       (s: any) =>
         ["sent", "delivered", "opened", "clicked"].includes(s.status) &&
-        !s.replied_at &&
-        s.sent_at &&
-        new Date(s.sent_at) <= cutoff,
+        !s.replied_at,
     );
     if (stale) return true;
   }
