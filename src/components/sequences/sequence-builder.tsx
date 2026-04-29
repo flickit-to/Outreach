@@ -269,20 +269,33 @@ export function SequenceBuilder({
               No steps yet. Add the first one below.
             </p>
           )}
-          {steps.map((step, idx) => (
-            <div key={idx}>
-              <StepCard
-                step={step}
-                index={idx}
-                total={steps.length}
-                onChange={(partial) => updateStep(idx, partial)}
-                onRemove={() => removeStep(idx)}
-                onMoveUp={() => moveStep(idx, -1)}
-                onMoveDown={() => moveStep(idx, 1)}
-              />
-              <AddStepRow onAdd={(type) => addStep(type, idx + 1)} />
-            </div>
-          ))}
+          {steps.map((step, idx) => {
+            // Subject of the most recent email step before this one (for the
+            // "Send as reply" auto-fill in EmailStepEditor).
+            let priorEmailSubject: string | null = null;
+            for (let i = idx - 1; i >= 0; i--) {
+              const s = steps[i];
+              if (s.type === "email" && s.subject) {
+                priorEmailSubject = s.subject;
+                break;
+              }
+            }
+            return (
+              <div key={idx}>
+                <StepCard
+                  step={step}
+                  index={idx}
+                  total={steps.length}
+                  priorEmailSubject={priorEmailSubject}
+                  onChange={(partial) => updateStep(idx, partial)}
+                  onRemove={() => removeStep(idx)}
+                  onMoveUp={() => moveStep(idx, -1)}
+                  onMoveDown={() => moveStep(idx, 1)}
+                />
+                <AddStepRow onAdd={(type) => addStep(type, idx + 1)} />
+              </div>
+            );
+          })}
           {steps.length === 0 && (
             <AddStepRow onAdd={(type) => addStep(type, 0)} />
           )}
@@ -312,6 +325,7 @@ function StepCard({
   step,
   index,
   total,
+  priorEmailSubject,
   onChange,
   onRemove,
   onMoveUp,
@@ -320,6 +334,7 @@ function StepCard({
   step: Step;
   index: number;
   total: number;
+  priorEmailSubject: string | null;
   onChange: (partial: Partial<Step>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -352,7 +367,11 @@ function StepCard({
       </div>
       <div className="p-3 space-y-3">
         {step.type === "email" && (
-          <EmailStepEditor step={step} onChange={onChange} />
+          <EmailStepEditor
+            step={step}
+            onChange={onChange}
+            priorEmailSubject={priorEmailSubject}
+          />
         )}
         {step.type === "wait" && <WaitStepEditor step={step} onChange={onChange} />}
         {step.type === "condition" && (
@@ -369,9 +388,11 @@ const VARIABLES = ["{{first_name}}", "{{last_name}}", "{{company}}", "{{role}}"]
 function EmailStepEditor({
   step,
   onChange,
+  priorEmailSubject,
 }: {
   step: EmailStep;
   onChange: (p: Partial<EmailStep>) => void;
+  priorEmailSubject: string | null;
 }) {
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -391,6 +412,25 @@ function EmailStepEditor({
     }, 0);
   };
 
+  const toggleSendAsReply = (checked: boolean) => {
+    if (checked && priorEmailSubject) {
+      // Auto-fill the subject with "Re: <prior>" — but don't overwrite if the
+      // user has already typed something custom (we only fill when empty or
+      // when the existing value is itself just a "Re: ..." inheriting one).
+      const isAutoFillSafe =
+        !step.subject ||
+        /^re:\s/i.test(step.subject.trim());
+      const next = isAutoFillSafe
+        ? (/^re:\s/i.test(priorEmailSubject.trim())
+            ? priorEmailSubject
+            : `Re: ${priorEmailSubject}`)
+        : step.subject;
+      onChange({ send_as_reply: true, subject: next });
+    } else {
+      onChange({ send_as_reply: checked });
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div>
@@ -400,8 +440,13 @@ function EmailStepEditor({
           value={step.subject}
           onChange={(e) => onChange({ subject: e.target.value })}
           onFocus={() => setLastFocused("subject")}
-          placeholder="e.g. Quick question"
+          placeholder={step.send_as_reply ? "Re: <previous subject>" : "e.g. Quick question"}
         />
+        {step.send_as_reply && priorEmailSubject && (
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Auto-filled from previous email. Edit if you want a different subject.
+          </p>
+        )}
       </div>
       <div>
         <Label className="text-xs">Body</Label>
@@ -419,7 +464,7 @@ function EmailStepEditor({
         <input
           type="checkbox"
           checked={step.send_as_reply}
-          onChange={(e) => onChange({ send_as_reply: e.target.checked })}
+          onChange={(e) => toggleSendAsReply(e.target.checked)}
           className="h-4 w-4"
         />
         Send as reply (threaded under previous email)

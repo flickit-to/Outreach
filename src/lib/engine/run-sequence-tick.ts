@@ -243,8 +243,14 @@ async function sendEmailStep({
   | { kind: "deferred"; reason: string; next_run_at: string }
   | { kind: "failed"; reason: string }
 > {
-  if (!step.subject || !step.body) {
-    return { kind: "failed", reason: "missing_subject_or_body" };
+  // Body always required. Subject is normally required, but for send_as_reply
+  // steps the engine can inherit "Re: <prior subject>" from the prior send if
+  // step.subject is somehow empty (defense in depth — the UI should auto-fill).
+  if (!step.body) {
+    return { kind: "failed", reason: "missing_body" };
+  }
+  if (!step.subject && !step.send_as_reply) {
+    return { kind: "failed", reason: "missing_subject" };
   }
 
   // Email-level bounce suppression: if ANY contact owned by this user with the
@@ -311,15 +317,19 @@ async function sendEmailStep({
     html: settings?.signature_html || null,
     imageUrl: settings?.signature_image_url || null,
   });
-  const subject = processSubject(step.subject, contact);
 
   // Reply threading: if step.send_as_reply, find the most recent prior send
-  // for this contact in this sequence and use its message_id.
+  // for this contact in this sequence and use its message_id in the
+  // In-Reply-To/References headers. The UI auto-fills "Re: <prior subject>"
+  // into step.subject when the user toggles "Send as reply" on; if for some
+  // reason step.subject is empty at execution time (e.g. an older sequence
+  // or an edit that cleared it), fall back to inheriting from the prior send.
   const headers: Record<string, string> = {};
+  let subjectSource: string = step.subject ?? "";
   if (step.send_as_reply) {
     const { data: priorSend } = await sb
       .from("sends")
-      .select("message_id")
+      .select("message_id, sequence_step_id")
       .eq("sequence_id", sequence.id)
       .eq("contact_id", contact.id)
       .neq("id", sendRow.id)
@@ -331,7 +341,19 @@ async function sendEmailStep({
       headers["In-Reply-To"] = priorSend.message_id;
       headers["References"] = priorSend.message_id;
     }
+    if (!subjectSource && priorSend?.sequence_step_id) {
+      const { data: priorStep } = await sb
+        .from("sequence_steps")
+        .select("subject")
+        .eq("id", priorSend.sequence_step_id)
+        .maybeSingle();
+      if (priorStep?.subject) {
+        const prev = priorStep.subject.trim();
+        subjectSource = /^re:\s/i.test(prev) ? prev : `Re: ${prev}`;
+      }
+    }
   }
+  const subject = processSubject(subjectSource, contact);
 
   if (dryRun) {
     await sb
