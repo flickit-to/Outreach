@@ -8,6 +8,7 @@ import type { Contact, Tag } from "@/lib/types";
 import { TAG_COLOR_CLASSES } from "@/lib/types";
 import { ContactStatusBadge } from "./contact-status-badge";
 import { LeadStageBadge } from "./lead-stage-badge";
+import { EmailCell } from "./email-cell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -286,7 +287,7 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
       case "last_name":
         return <span className="text-sm privacy-blur">{contact.last_name || ""}</span>;
       case "email":
-        return <span className="text-sm text-muted-foreground privacy-blur">{contact.email}</span>;
+        return <EmailCell email={contact.email} />;
       case "company":
         return <span className="text-sm privacy-blur">{contact.company || ""}</span>;
       case "role":

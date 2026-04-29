@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Link from "next/link";
 import type { CompanyStats } from "@/app/(dashboard)/companies/page";
+import { CompanySlidePanel } from "./company-slide-panel";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -72,6 +72,7 @@ export function CompanyTable({ companies }: { companies: CompanyStats[] }) {
   const [sortKey, setSortKey] = useState<string>("contacts");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COLUMNS.map((c) => c.key));
+  const [openCompany, setOpenCompany] = useState<CompanyStats | null>(null);
 
   const orderedColumns = useMemo(
     () =>
@@ -116,12 +117,16 @@ export function CompanyTable({ companies }: { companies: CompanyStats[] }) {
     switch (colKey) {
       case "company":
         return (
-          <Link
-            href={`/contacts?company=${encodeURIComponent(row.company)}`}
-            className="text-sm font-medium hover:underline privacy-blur"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenCompany(row);
+            }}
+            className="text-sm font-medium hover:underline privacy-blur text-left"
           >
             {row.company}
-          </Link>
+          </button>
         );
       case "contacts":
         return <span className="text-sm">{row.contacts}</span>;
@@ -260,7 +265,11 @@ export function CompanyTable({ companies }: { companies: CompanyStats[] }) {
               </tr>
             ) : (
               filtered.map((row) => (
-                <tr key={row.company} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
+                <tr
+                  key={row.company}
+                  onClick={() => setOpenCompany(row)}
+                  className="border-b border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
+                >
                   {orderedColumns.map((col) => (
                     <td
                       key={col.key}
@@ -279,6 +288,12 @@ export function CompanyTable({ companies }: { companies: CompanyStats[] }) {
       <div className="py-2 px-2 text-xs text-muted-foreground">
         {filtered.length} of {companies.length} companies
       </div>
+
+      <CompanySlidePanel
+        company={openCompany}
+        open={openCompany !== null}
+        onOpenChange={(o) => { if (!o) setOpenCompany(null); }}
+      />
     </div>
   );
 }
