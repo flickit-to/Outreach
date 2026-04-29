@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,6 +16,16 @@ import { useToast } from "@/hooks/use-toast";
 import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/timezone";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SendDaysPicker } from "./send-days-picker";
+import { VariableChips, insertAtCursor } from "@/components/ui/variable-chips";
+
+const CAMPAIGN_VARIABLES = [
+  "{{first_name}}",
+  "{{last_name}}",
+  "{{name}}",
+  "{{company}}",
+  "{{role}}",
+  "{{email}}",
+];
 
 export function CampaignEditForm({
   campaign,
@@ -48,6 +58,7 @@ export function CampaignEditForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<CampaignInput>({
     resolver: zodResolver(campaignSchema),
@@ -62,6 +73,34 @@ export function CampaignEditForm({
         : "",
     },
   });
+
+  const subjectRef = useRef<HTMLInputElement | null>(null);
+  const subjectBRef = useRef<HTMLInputElement | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const [lastFocused, setLastFocused] = useState<"subject" | "subject_b" | "body">("body");
+
+  const insertVariable = (variable: string) => {
+    const target =
+      lastFocused === "subject"
+        ? subjectRef.current
+        : lastFocused === "subject_b"
+          ? subjectBRef.current
+          : bodyRef.current;
+    if (!target) return;
+    const { next, cursor } = insertAtCursor(target, variable);
+    setValue(lastFocused, next, { shouldDirty: true, shouldValidate: false });
+    setTimeout(() => {
+      target.focus();
+      target.setSelectionRange(cursor, cursor);
+    }, 0);
+  };
+
+  const mergeRefs =
+    <T extends HTMLElement>(rhfRef: (instance: T | null) => void, localRef: { current: T | null }) =>
+    (el: T | null) => {
+      rhfRef(el);
+      localRef.current = el;
+    };
 
   async function onSubmit(data: CampaignInput) {
     setLoading(true);
@@ -127,7 +166,18 @@ export function CampaignEditForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="subject">Subject Line{abEnabled ? " A" : ""}</Label>
-            <Input id="subject" {...register("subject")} disabled={!canEdit} />
+            {(() => {
+              const r = register("subject");
+              return (
+                <Input
+                  id="subject"
+                  {...r}
+                  ref={mergeRefs<HTMLInputElement>(r.ref, subjectRef)}
+                  onFocus={() => setLastFocused("subject")}
+                  disabled={!canEdit}
+                />
+              );
+            })()}
             {errors.subject && <p className="text-sm text-red-600">{errors.subject.message}</p>}
           </div>
           {canEdit && (
@@ -139,15 +189,36 @@ export function CampaignEditForm({
           {abEnabled && (
             <div className="space-y-2">
               <Label htmlFor="subject_b">Subject Line B</Label>
-              <Input id="subject_b" {...register("subject_b")} disabled={!canEdit} />
+              {(() => {
+                const r = register("subject_b");
+                return (
+                  <Input
+                    id="subject_b"
+                    {...r}
+                    ref={mergeRefs<HTMLInputElement>(r.ref, subjectBRef)}
+                    onFocus={() => setLastFocused("subject_b")}
+                    disabled={!canEdit}
+                  />
+                );
+              })()}
             </div>
           )}
           <div className="space-y-2">
             <Label htmlFor="body">Email Body</Label>
-            <p className="text-xs text-muted-foreground">
-              Use {"{{first_name}}"}, {"{{last_name}}"}, {"{{name}}"}, {"{{company}}"}, {"{{role}}"}, {"{{email}}"} for personalization
-            </p>
-            <Textarea id="body" rows={10} {...register("body")} disabled={!canEdit} />
+            {(() => {
+              const r = register("body");
+              return (
+                <Textarea
+                  id="body"
+                  rows={10}
+                  {...r}
+                  ref={mergeRefs<HTMLTextAreaElement>(r.ref, bodyRef)}
+                  onFocus={() => setLastFocused("body")}
+                  disabled={!canEdit}
+                />
+              );
+            })()}
+            {canEdit && <VariableChips variables={CAMPAIGN_VARIABLES} onInsert={insertVariable} />}
             {errors.body && <p className="text-sm text-red-600">{errors.body.message}</p>}
           </div>
         </CardContent>

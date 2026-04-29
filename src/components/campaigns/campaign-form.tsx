@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,6 +17,16 @@ import { zonedTimeToUtc, getBrowserTimezone, COMMON_TIMEZONES } from "@/lib/time
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SendDaysPicker } from "./send-days-picker";
 import { FollowupFilters } from "./followup-filters";
+import { VariableChips, insertAtCursor } from "@/components/ui/variable-chips";
+
+const CAMPAIGN_VARIABLES = [
+  "{{first_name}}",
+  "{{last_name}}",
+  "{{name}}",
+  "{{company}}",
+  "{{role}}",
+  "{{email}}",
+];
 
 interface ParentSendData {
   contactId: string;
@@ -62,6 +72,7 @@ export function CampaignForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<CampaignInput>({
     resolver: zodResolver(campaignSchema),
@@ -73,6 +84,37 @@ export function CampaignForm({
       list_id: "",
     },
   });
+
+  // Refs onto the actual DOM nodes so we can read selectionStart and restore
+  // cursor position. RHF's register() returns its own ref, so we merge.
+  const subjectRef = useRef<HTMLInputElement | null>(null);
+  const subjectBRef = useRef<HTMLInputElement | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const [lastFocused, setLastFocused] = useState<"subject" | "subject_b" | "body">("body");
+
+  const insertVariable = (variable: string) => {
+    const target =
+      lastFocused === "subject"
+        ? subjectRef.current
+        : lastFocused === "subject_b"
+          ? subjectBRef.current
+          : bodyRef.current;
+    if (!target) return;
+    const { next, cursor } = insertAtCursor(target, variable);
+    setValue(lastFocused, next, { shouldDirty: true, shouldValidate: false });
+    setTimeout(() => {
+      target.focus();
+      target.setSelectionRange(cursor, cursor);
+    }, 0);
+  };
+
+  // Merge an RHF ref with our local ref for a field.
+  const mergeRefs =
+    <T extends HTMLElement>(rhfRef: (instance: T | null) => void, localRef: { current: T | null }) =>
+    (el: T | null) => {
+      rhfRef(el);
+      localRef.current = el;
+    };
 
   const handleFilteredContacts = useCallback((ids: string[], trigger: string) => {
     setFollowupContactIds(ids);
@@ -185,7 +227,18 @@ export function CampaignForm({
             <>
               <div className="space-y-2">
                 <Label htmlFor="subject">Subject Line{abEnabled ? " A" : ""}</Label>
-                <Input id="subject" placeholder="Quick question about {{company}}" {...register("subject")} />
+                {(() => {
+                  const r = register("subject");
+                  return (
+                    <Input
+                      id="subject"
+                      placeholder="Quick question about {{company}}"
+                      {...r}
+                      ref={mergeRefs<HTMLInputElement>(r.ref, subjectRef)}
+                      onFocus={() => setLastFocused("subject")}
+                    />
+                  );
+                })()}
                 {errors.subject && <p className="text-sm text-red-600">{errors.subject.message}</p>}
               </div>
               <div className="flex items-center gap-2">
@@ -195,7 +248,18 @@ export function CampaignForm({
               {abEnabled && (
                 <div className="space-y-2">
                   <Label htmlFor="subject_b">Subject Line B</Label>
-                  <Input id="subject_b" placeholder="Alternative subject..." {...register("subject_b")} />
+                  {(() => {
+                    const r = register("subject_b");
+                    return (
+                      <Input
+                        id="subject_b"
+                        placeholder="Alternative subject..."
+                        {...r}
+                        ref={mergeRefs<HTMLInputElement>(r.ref, subjectBRef)}
+                        onFocus={() => setLastFocused("subject_b")}
+                      />
+                    );
+                  })()}
                   <p className="text-xs text-muted-foreground">Recipients split 50/50</p>
                 </div>
               )}
@@ -211,10 +275,20 @@ export function CampaignForm({
           )}
           <div className="space-y-2">
             <Label htmlFor="body">Email Body</Label>
-            <p className="text-xs text-muted-foreground">
-              Use {"{{first_name}}"}, {"{{last_name}}"}, {"{{name}}"}, {"{{company}}"}, {"{{role}}"}, {"{{email}}"} for personalization
-            </p>
-            <Textarea id="body" placeholder={`Hi {{first_name}},\n\nI noticed {{company}} is...`} rows={10} {...register("body")} />
+            {(() => {
+              const r = register("body");
+              return (
+                <Textarea
+                  id="body"
+                  placeholder={`Hi {{first_name}},\n\nI noticed {{company}} is...`}
+                  rows={10}
+                  {...r}
+                  ref={mergeRefs<HTMLTextAreaElement>(r.ref, bodyRef)}
+                  onFocus={() => setLastFocused("body")}
+                />
+              );
+            })()}
+            <VariableChips variables={CAMPAIGN_VARIABLES} onInsert={insertVariable} />
             {errors.body && <p className="text-sm text-red-600">{errors.body.message}</p>}
           </div>
         </CardContent>

@@ -593,7 +593,10 @@ async function evaluateCondition({
   if (!sends || sends.length === 0) return false;
 
   const wantsNotOpened = triggers.includes("not_opened");
-  const positiveTriggers = triggers.filter((t) => t !== "not_opened");
+  const wantsNotReplied = triggers.includes("not_replied");
+  const positiveTriggers = triggers.filter(
+    (t) => t !== "not_opened" && t !== "not_replied",
+  );
 
   // Positive triggers: at least one matches → true
   const matchSend = (s: any, trigger: string): boolean => {
@@ -622,6 +625,21 @@ async function evaluateCondition({
       (s: any) =>
         ["sent", "delivered"].includes(s.status) &&
         !s.opened_at && !s.clicked_at && !s.replied_at &&
+        s.sent_at &&
+        new Date(s.sent_at) <= cutoff,
+    );
+    if (stale) return true;
+  }
+
+  // not_replied: matches if a prior send exists, has no reply, AND it's been
+  // at least within_days since sent. Opens/clicks count as engagement but NOT
+  // as a reply, so an opened-but-unreplied send still triggers this.
+  if (wantsNotReplied) {
+    const cutoff = new Date(Date.now() - (step.within_days || 7) * 86_400_000);
+    const stale = sends.some(
+      (s: any) =>
+        ["sent", "delivered", "opened", "clicked"].includes(s.status) &&
+        !s.replied_at &&
         s.sent_at &&
         new Date(s.sent_at) <= cutoff,
     );

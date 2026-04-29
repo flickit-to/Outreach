@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { VariableChips, insertAtCursor } from "@/components/ui/variable-chips";
 import {
   Select,
   SelectTrigger,
@@ -363,6 +364,8 @@ function StepCard({
 }
 
 // ─── Editors per step type ───────────────────────────────────────────────────
+const VARIABLES = ["{{first_name}}", "{{last_name}}", "{{company}}", "{{role}}"];
+
 function EmailStepEditor({
   step,
   onChange,
@@ -370,27 +373,47 @@ function EmailStepEditor({
   step: EmailStep;
   onChange: (p: Partial<EmailStep>) => void;
 }) {
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [lastFocused, setLastFocused] = useState<"subject" | "body">("body");
+
+  const insertVariable = (variable: string) => {
+    const target = lastFocused === "subject" ? subjectRef.current : bodyRef.current;
+    if (!target) return;
+    const { next, cursor } = insertAtCursor(target, variable);
+    if (lastFocused === "subject") onChange({ subject: next });
+    else onChange({ body: next });
+    setTimeout(() => {
+      const t = lastFocused === "subject" ? subjectRef.current : bodyRef.current;
+      if (!t) return;
+      t.focus();
+      t.setSelectionRange(cursor, cursor);
+    }, 0);
+  };
+
   return (
     <div className="space-y-3">
       <div>
         <Label className="text-xs">Subject</Label>
         <Input
+          ref={subjectRef}
           value={step.subject}
           onChange={(e) => onChange({ subject: e.target.value })}
+          onFocus={() => setLastFocused("subject")}
           placeholder="e.g. Quick question"
         />
       </div>
       <div>
         <Label className="text-xs">Body</Label>
         <Textarea
+          ref={bodyRef}
           value={step.body}
           onChange={(e) => onChange({ body: e.target.value })}
+          onFocus={() => setLastFocused("body")}
           placeholder={"Hi {{first_name}},\n\n…"}
           rows={6}
         />
-        <p className="text-[11px] text-muted-foreground mt-1">
-          Variables: {"{{first_name}}, {{last_name}}, {{company}}, {{role}}"}
-        </p>
+        <VariableChips variables={VARIABLES} onInsert={insertVariable} />
       </div>
       <label className="flex items-center gap-2 text-sm">
         <input

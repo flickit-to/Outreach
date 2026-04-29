@@ -179,7 +179,8 @@ export type ConditionTrigger =
   | "clicked"
   | "opened_or_clicked"
   | "replied"
-  | "not_opened";
+  | "not_opened"
+  | "not_replied";
 export type EnrollmentStatus =
   | "active"
   | "paused"

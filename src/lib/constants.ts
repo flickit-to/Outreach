@@ -37,6 +37,7 @@ export const STEP_CONDITION_TRIGGERS = [
   { value: "opened_or_clicked", label: "Opened OR Clicked" },
   { value: "replied", label: "Replied" },
   { value: "not_opened", label: "Did NOT open" },
+  { value: "not_replied", label: "Did NOT reply" },
 ] as const;
 
 export const CONTACT_STATUSES = [

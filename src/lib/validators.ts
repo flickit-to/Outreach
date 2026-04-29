@@ -80,7 +80,7 @@ export const sequenceStepSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("condition"),
     triggers: z
-      .array(z.enum(["opened", "clicked", "opened_or_clicked", "replied", "not_opened"]))
+      .array(z.enum(["opened", "clicked", "opened_or_clicked", "replied", "not_opened", "not_replied"]))
       .min(1, "Pick at least one trigger"),
     within_days: z.number().min(1).max(60),
     on_false: z.enum(["end", "continue"]).default("end"),
