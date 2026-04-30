@@ -22,14 +22,31 @@ async function main() {
   const resetDue = process.argv.includes("--reset-due");
 
   if (resetDue) {
-    const now = new Date().toISOString();
-    const { count } = await sb
-      .from("enrollments")
-      .update({ next_run_at: now }, { count: "exact" })
+    // Only reset enrollments at EMAIL steps. Resetting wait/condition
+    // enrollments collapses their wait timer to 0 and makes the sequence
+    // misfire. Use case: re-trying a failed email send (e.g. after fixing a
+    // schema bug that made all sends defer). Wait/condition enrollments
+    // should keep their original next_run_at.
+    const { data: emailSteps } = await sb
+      .from("sequence_steps")
+      .select("id")
       .eq("sequence_id", SEQUENCE_ID)
-      .eq("status", "active")
-      .gt("next_run_at", now);
-    console.log(`\nReset ${count || 0} active+deferred enrollments to next_run_at = now\n`);
+      .eq("type", "email");
+    const emailStepIds = (emailSteps || []).map((s: any) => s.id);
+    if (emailStepIds.length === 0) {
+      console.log("No email steps in this sequence — nothing to reset.\n");
+    } else {
+      const now = new Date().toISOString();
+      const { count } = await sb
+        .from("enrollments")
+        .update({ next_run_at: now }, { count: "exact" })
+        .eq("sequence_id", SEQUENCE_ID)
+        .eq("status", "active")
+        .gt("next_run_at", now)
+        .in("current_step_id", emailStepIds);
+      console.log(`\nReset ${count || 0} active+deferred email-step enrollments to next_run_at = now`);
+      console.log(`(Wait and condition enrollments left alone — their timers preserved.)\n`);
+    }
   }
 
   console.log(`Ticking sequence ${SEQUENCE_ID} (max ${MAX_TICKS})\n`);
