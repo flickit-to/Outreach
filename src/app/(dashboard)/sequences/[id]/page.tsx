@@ -3,19 +3,11 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Mail, Hourglass, GitBranch, ArrowLeft } from "lucide-react";
 import { SEQUENCE_STATUSES, STEP_CONDITION_TRIGGERS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { SequenceActionBar } from "@/components/sequences/sequence-action-bar";
-import { LeadStageBadge } from "@/components/contacts/lead-stage-badge";
+import { EnrollmentsTableClient, type EnrollmentRow } from "@/components/sequences/enrollments-table-client";
 
 const STEP_ICONS: Record<string, { icon: typeof Mail; color: string }> = {
   email: { icon: Mail, color: "text-blue-600" },
@@ -218,15 +210,14 @@ async function EnrollmentsTable({ sequenceId }: { sequenceId: string }) {
        step:current_step_id(step_order, type)`,
     )
     .eq("sequence_id", sequenceId)
-    .order("enrolled_at", { ascending: false })
-    .limit(50);
+    .order("enrolled_at", { ascending: false });
 
   // Lookup map for sticky sender display
   const { data: senders } = await supabase
     .from("sender_emails")
     .select("id, email");
-  const senderById = new Map<string, string>();
-  for (const s of senders || []) senderById.set(s.id, s.email);
+  const senderById: Record<string, string> = {};
+  for (const s of senders || []) senderById[s.id] = s.email;
 
   if (!enrollments || enrollments.length === 0) {
     return (
@@ -243,95 +234,16 @@ async function EnrollmentsTable({ sequenceId }: { sequenceId: string }) {
     );
   }
 
-  const fmtRelative = (iso: string | null) => {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    const diff = d.getTime() - Date.now();
-    const abs = Math.abs(diff);
-    const min = Math.round(abs / 60_000);
-    const hr = Math.round(abs / 3_600_000);
-    const day = Math.round(abs / 86_400_000);
-    const pretty =
-      abs < 60_000 ? "<1m"
-        : min < 60 ? `${min}m`
-        : hr < 24 ? `${hr}h`
-        : `${day}d`;
-    return diff > 0 ? `in ${pretty}` : `${pretty} ago`;
-  };
-
   return (
     <Card className="mt-6">
       <CardHeader>
         <CardTitle className="text-base">Enrollments ({enrollments.length})</CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Contact</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Current step</TableHead>
-              <TableHead>Next run</TableHead>
-              <TableHead>Lead stage</TableHead>
-              <TableHead>Locked sender</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {enrollments.map((e: any) => {
-              const c = e.contacts;
-              const stepLabel = e.step
-                ? `${String(e.step.step_order).padStart(2, "0")} · ${e.step.type}`
-                : "—";
-              const statusBadgeColor =
-                e.status === "active" ? "bg-blue-100 text-blue-700"
-                : e.status === "completed" ? "bg-green-100 text-green-700"
-                : e.status === "exited" ? "bg-gray-100 text-gray-700"
-                : e.status === "paused" ? "bg-yellow-100 text-yellow-800"
-                : "bg-gray-100 text-gray-700";
-              const lockedSenderEmail = c?.assigned_sender_id
-                ? senderById.get(c.assigned_sender_id)
-                : null;
-              return (
-                <TableRow key={e.id}>
-                  <TableCell>
-                    <div className="text-sm">
-                      <div className="font-medium">
-                        {[c?.first_name, c?.last_name].filter(Boolean).join(" ") || c?.email || "—"}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{c?.email}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className={statusBadgeColor}>
-                      {e.status}
-                    </Badge>
-                    {e.exit_reason && (
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {e.exit_reason}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono">{stepLabel}</TableCell>
-                  <TableCell className="text-xs">{fmtRelative(e.next_run_at)}</TableCell>
-                  <TableCell>
-                    {c ? (
-                      <LeadStageBadge contactId={c.id} stage={c.lead_stage} />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {lockedSenderEmail ? (
-                      <span className="font-mono text-muted-foreground">{lockedSenderEmail}</span>
-                    ) : (
-                      <span className="text-muted-foreground italic">unassigned</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <EnrollmentsTableClient
+          enrollments={enrollments as unknown as EnrollmentRow[]}
+          senderById={senderById}
+        />
       </CardContent>
     </Card>
   );

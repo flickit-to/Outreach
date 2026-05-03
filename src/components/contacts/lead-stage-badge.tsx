@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -14,6 +13,9 @@ import { getStatusColor } from "@/lib/utils";
 import type { LeadStage } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronDown } from "lucide-react";
+import { setContactLeadStage } from "@/app/(dashboard)/contacts/actions";
+
+const CASCADE_STAGES: LeadStage[] = ["replied", "not_a_fit"];
 
 export function LeadStageBadge({
   contactId,
@@ -27,19 +29,31 @@ export function LeadStageBadge({
 
   const currentStage = LEAD_STAGES.find((s) => s.value === stage);
 
-  async function updateStage(newStage: string) {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("contacts")
-      .update({ lead_stage: newStage })
-      .eq("id", contactId);
+  async function updateStage(newStage: LeadStage) {
+    // Confirm before cascading — these stages also mark every contact at the
+    // same email domain as Not a fit and exit them from any active sequence.
+    if (CASCADE_STAGES.includes(newStage)) {
+      const ok = window.confirm(
+        `Marking as "${LEAD_STAGES.find((s) => s.value === newStage)?.label}" will also mark every contact at the SAME email domain as "Not a fit" and remove them from any active sequence.\n\nContinue?`,
+      );
+      if (!ok) return;
+    }
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    const r = await setContactLeadStage(contactId, newStage);
+    if (!r.ok) {
+      toast({ title: "Error", description: r.error, variant: "destructive" });
       return;
     }
 
-    toast({ title: "Stage updated", description: `Changed to ${LEAD_STAGES.find((s) => s.value === newStage)?.label}` });
+    const stageLabel = LEAD_STAGES.find((s) => s.value === newStage)?.label;
+    if (r.cascadeCount > 0) {
+      toast({
+        title: `Marked ${stageLabel}`,
+        description: `Also exited ${r.cascadeCount} contact(s) at the same domain as Not a fit.`,
+      });
+    } else {
+      toast({ title: "Stage updated", description: `Changed to ${stageLabel}` });
+    }
     router.refresh();
   }
 
@@ -57,7 +71,7 @@ export function LeadStageBadge({
         {LEAD_STAGES.map((s) => (
           <DropdownMenuItem
             key={s.value}
-            onClick={() => updateStage(s.value)}
+            onClick={() => updateStage(s.value as LeadStage)}
             className={stage === s.value ? "font-bold" : ""}
           >
             <Badge variant="secondary" className={`${s.color} mr-2`}>

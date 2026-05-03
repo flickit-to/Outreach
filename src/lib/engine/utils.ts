@@ -11,6 +11,7 @@ const AUTO_EXIT_LEAD_STAGES = [
   "closed_won",
   "closed_lost",
   "bounced",
+  "not_a_fit",
 ] as const;
 
 export function isAutoExitLeadStage(stage: string | null | undefined): boolean {

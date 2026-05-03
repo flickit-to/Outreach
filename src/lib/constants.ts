@@ -60,6 +60,7 @@ export const LEAD_STAGES = [
   { value: "closed_won", label: "Closed (Won)", color: "bg-emerald-100 text-emerald-800", action: "Onboard" },
   { value: "closed_lost", label: "Closed (Lost)", color: "bg-red-100 text-red-800", action: "" },
   { value: "bounced", label: "Bounced", color: "bg-red-100 text-red-800", action: "Suppressed — email is undeliverable" },
+  { value: "not_a_fit", label: "Not a fit", color: "bg-rose-100 text-rose-800", action: "Suppressed — also exits company-mates" },
 ] as const;
 
 export const CAMPAIGN_STATUSES = [
