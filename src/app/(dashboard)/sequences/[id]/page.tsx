@@ -15,6 +15,7 @@ import { Mail, Hourglass, GitBranch, ArrowLeft } from "lucide-react";
 import { SEQUENCE_STATUSES, STEP_CONDITION_TRIGGERS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { SequenceActionBar } from "@/components/sequences/sequence-action-bar";
+import { LeadStageBadge } from "@/components/contacts/lead-stage-badge";
 
 const STEP_ICONS: Record<string, { icon: typeof Mail; color: string }> = {
   email: { icon: Mail, color: "text-blue-600" },
@@ -312,7 +313,13 @@ async function EnrollmentsTable({ sequenceId }: { sequenceId: string }) {
                   </TableCell>
                   <TableCell className="text-xs font-mono">{stepLabel}</TableCell>
                   <TableCell className="text-xs">{fmtRelative(e.next_run_at)}</TableCell>
-                  <TableCell className="text-xs">{c?.lead_stage}</TableCell>
+                  <TableCell>
+                    {c ? (
+                      <LeadStageBadge contactId={c.id} stage={c.lead_stage} />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs">
                     {lockedSenderEmail ? (
                       <span className="font-mono text-muted-foreground">{lockedSenderEmail}</span>
