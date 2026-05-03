@@ -154,7 +154,7 @@ export function EnrollmentsTableClient({
           {filtered.length === 0 && q && (
             <TableRow>
               <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
-                No matches for "{q}"
+                No matches for &ldquo;{q}&rdquo;
               </TableCell>
             </TableRow>
           )}
