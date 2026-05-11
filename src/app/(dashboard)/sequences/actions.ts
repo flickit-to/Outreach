@@ -304,17 +304,30 @@ export async function runEngineNow(sequenceId: string) {
 
   const admin = createAdminClient();
   const results: Record<string, number> = {};
-  for (let i = 0; i < 50; i++) {
-    const { data: due } = await admin
-      .from("enrollments")
-      .select("*")
-      .eq("sequence_id", sequenceId)
-      .eq("status", "active")
-      .lte("next_run_at", new Date().toISOString())
-      .order("next_run_at", { ascending: true })
-      .limit(1);
-    if (!due || due.length === 0) break;
-    const r = await runEnrollmentTick(due[0] as never, admin);
+
+  // Pre-fetch up to 200 due enrollments with their current step's order so we
+  // can prioritize follow-ups (step_order > 1) over new outreach (step_order
+  // = 1). Then process the top 50 in priority order. The engine handles state
+  // changes between pre-fetch and tick (it checks enrollment.status).
+  const { data: dueAll } = await admin
+    .from("enrollments")
+    .select("*, step:current_step_id(step_order)")
+    .eq("sequence_id", sequenceId)
+    .eq("status", "active")
+    .lte("next_run_at", new Date().toISOString())
+    .limit(200);
+
+  const queue = [...(dueAll || [])]
+    .sort((a: any, b: any) => {
+      const aOrder = a.step?.step_order ?? 0;
+      const bOrder = b.step?.step_order ?? 0;
+      if (aOrder !== bOrder) return bOrder - aOrder;
+      return (a.next_run_at || "").localeCompare(b.next_run_at || "");
+    })
+    .slice(0, 50);
+
+  for (const e of queue) {
+    const r = await runEnrollmentTick(e as never, admin);
     results[r.kind] = (results[r.kind] || 0) + 1;
   }
 

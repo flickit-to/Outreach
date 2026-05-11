@@ -51,31 +51,46 @@ async function main() {
 
   console.log(`Ticking sequence ${SEQUENCE_ID} (max ${MAX_TICKS})\n`);
 
+  // Pre-fetch all due enrollments + their current step_order so we can
+  // prioritize follow-ups (step_order > 1) over new outreach (step_order = 1).
+  // Sort: higher step_order first, then older next_run_at first.
+  const { data: dueAll } = await sb
+    .from("enrollments")
+    .select("*, step:current_step_id(step_order)")
+    .eq("sequence_id", SEQUENCE_ID)
+    .eq("status", "active")
+    .lte("next_run_at", new Date().toISOString())
+    .limit(MAX_TICKS * 2);
+
+  const queue = [...(dueAll || [])]
+    .sort((a: any, b: any) => {
+      const aOrder = a.step?.step_order ?? 0;
+      const bOrder = b.step?.step_order ?? 0;
+      if (aOrder !== bOrder) return bOrder - aOrder;
+      return (a.next_run_at || "").localeCompare(b.next_run_at || "");
+    })
+    .slice(0, MAX_TICKS);
+
+  console.log(`Queue: ${queue.length} enrollments (priority: follow-ups first)\n`);
+
   const tally: Record<string, number> = {};
-  for (let i = 0; i < MAX_TICKS; i++) {
-    const { data: due } = await sb
-      .from("enrollments")
-      .select("*")
-      .eq("sequence_id", SEQUENCE_ID)
-      .eq("status", "active")
-      .lte("next_run_at", new Date().toISOString())
-      .order("next_run_at", { ascending: true })
-      .limit(1);
-    if (!due || due.length === 0) {
-      console.log(`No more due enrollments after ${i} ticks.`);
-      break;
-    }
+  for (let i = 0; i < queue.length; i++) {
+    const e = queue[i];
     try {
-      const r = await runEnrollmentTick(due[0] as never, sb);
+      const r = await runEnrollmentTick(e as never, sb);
       const key = "reason" in r ? `${r.kind}:${r.reason}` : r.kind;
       tally[key] = (tally[key] || 0) + 1;
       if (i < 3 || i % 20 === 0) {
-        console.log(`  tick ${i + 1}: ${key}`);
+        const stepLabel = e.step?.step_order ? `step${e.step.step_order}` : "??";
+        console.log(`  tick ${i + 1} [${stepLabel}]: ${key}`);
       }
-    } catch (e: any) {
+    } catch (err: any) {
       tally["error"] = (tally["error"] || 0) + 1;
-      console.error(`  tick ${i + 1}: ERROR — ${e.message}`);
+      console.error(`  tick ${i + 1}: ERROR — ${err.message}`);
     }
+  }
+  if (queue.length === 0) {
+    console.log(`No due enrollments.`);
   }
 
   console.log(`\nTally:`);
