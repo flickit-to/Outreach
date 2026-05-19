@@ -15,7 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronDown } from "lucide-react";
 import { setContactLeadStage } from "@/app/(dashboard)/contacts/actions";
 
-const CASCADE_STAGES: LeadStage[] = ["replied", "not_a_fit"];
+// Mirror of the server-side list in src/app/(dashboard)/contacts/actions.ts.
+// Only "not_a_fit" cascades to the whole email domain.
+const CASCADE_STAGES: LeadStage[] = ["not_a_fit"];
 
 export function LeadStageBadge({
   contactId,

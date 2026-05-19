@@ -13,7 +13,9 @@ const TERMINAL_STAGES: LeadStage[] = [
   "bounced",
   "not_a_fit",
 ];
-const CASCADE_STAGES: LeadStage[] = ["replied", "not_a_fit"];
+// Only "not_a_fit" cascades to the whole email domain. "Replied" is a
+// per-person signal — one contact replying doesn't mean the company is out.
+const CASCADE_STAGES: LeadStage[] = ["not_a_fit"];
 
 /**
  * Update a contact's lead_stage. If the new stage is a "cascade" stage
