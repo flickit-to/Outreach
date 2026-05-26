@@ -181,59 +181,65 @@ export async function addContactsToList(
     .eq("list_id", listId)
     .eq("status", "active");
 
+  // Only contacts that were NEW to the list are candidates for enrollment.
+  // A contact already on the list is skipped entirely — not re-added, not
+  // re-enrolled. (If you need to enrol existing list members, use the
+  // sequence's own Activate/Resume, which sweeps the whole list.)
   const enrolled: { sequence: string; count: number }[] = [];
 
-  for (const seq of sequences || []) {
-    // First step
-    const { data: firstStep } = await supabase
-      .from("sequence_steps")
-      .select("id")
-      .eq("sequence_id", seq.id)
-      .order("step_order", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (!firstStep) continue;
+  if (newToList.length > 0) {
+    for (const seq of sequences || []) {
+      // First step
+      const { data: firstStep } = await supabase
+        .from("sequence_steps")
+        .select("id")
+        .eq("sequence_id", seq.id)
+        .order("step_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!firstStep) continue;
 
-    // Already enrolled?
-    const { data: existingEnr } = await supabase
-      .from("enrollments")
-      .select("contact_id")
-      .eq("sequence_id", seq.id)
-      .in("contact_id", contactIds);
-    const enrolledSet = new Set((existingEnr || []).map((e: any) => e.contact_id));
+      // Already enrolled? (defensive — newTolist shouldn't be, but be safe)
+      const { data: existingEnr } = await supabase
+        .from("enrollments")
+        .select("contact_id")
+        .eq("sequence_id", seq.id)
+        .in("contact_id", newToList);
+      const enrolledSet = new Set((existingEnr || []).map((e: any) => e.contact_id));
 
-    // Skip terminal-stage contacts (don't enroll someone already disqualified).
-    const { data: stageRows } = await supabase
-      .from("contacts")
-      .select("id, lead_stage")
-      .in("id", contactIds);
-    const terminalSet = new Set(
-      (stageRows || [])
-        .filter((c: any) => TERMINAL_STAGES.includes(c.lead_stage))
-        .map((c: any) => c.id),
-    );
+      // Skip terminal-stage contacts (don't enroll someone already disqualified).
+      const { data: stageRows } = await supabase
+        .from("contacts")
+        .select("id, lead_stage")
+        .in("id", newToList);
+      const terminalSet = new Set(
+        (stageRows || [])
+          .filter((c: any) => TERMINAL_STAGES.includes(c.lead_stage))
+          .map((c: any) => c.id),
+      );
 
-    const now = new Date().toISOString();
-    const toEnroll = contactIds.filter(
-      (id) => !enrolledSet.has(id) && !terminalSet.has(id),
-    );
-    if (toEnroll.length === 0) continue;
+      const now = new Date().toISOString();
+      const toEnroll = newToList.filter(
+        (id) => !enrolledSet.has(id) && !terminalSet.has(id),
+      );
+      if (toEnroll.length === 0) continue;
 
-    const { data: inserted, error } = await supabase
-      .from("enrollments")
-      .insert(
-        toEnroll.map((cid) => ({
-          sequence_id: seq.id,
-          contact_id: cid,
-          current_step_id: firstStep.id,
-          status: "active",
-          next_run_at: now,
-          enrolled_at: now,
-        })),
-      )
-      .select("id");
-    if (error) return { ok: false, error: `Enrolling into "${seq.name}": ${error.message}` };
-    enrolled.push({ sequence: seq.name, count: inserted?.length || 0 });
+      const { data: inserted, error } = await supabase
+        .from("enrollments")
+        .insert(
+          toEnroll.map((cid) => ({
+            sequence_id: seq.id,
+            contact_id: cid,
+            current_step_id: firstStep.id,
+            status: "active",
+            next_run_at: now,
+            enrolled_at: now,
+          })),
+        )
+        .select("id");
+      if (error) return { ok: false, error: `Enrolling into "${seq.name}": ${error.message}` };
+      enrolled.push({ sequence: seq.name, count: inserted?.length || 0 });
+    }
   }
 
   revalidatePath("/contacts");
