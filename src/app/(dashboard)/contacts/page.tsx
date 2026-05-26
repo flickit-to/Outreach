@@ -20,6 +20,12 @@ export default async function ContactsPage() {
     .eq("user_id", user!.id)
     .order("name");
 
+  const { data: lists } = await supabase
+    .from("contact_lists")
+    .select("id, name")
+    .eq("user_id", user!.id)
+    .order("name");
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -39,7 +45,11 @@ export default async function ContactsPage() {
           </Link>
         </div>
       </div>
-      <ContactTable contacts={(contacts as Contact[]) || []} allTags={(tags as Tag[]) || []} />
+      <ContactTable
+        contacts={(contacts as Contact[]) || []}
+        allTags={(tags as Tag[]) || []}
+        lists={(lists as { id: string; name: string }[]) || []}
+      />
     </div>
   );
 }

@@ -123,3 +123,120 @@ async function exitActiveEnrollments(
     .in("contact_id", contactIds)
     .eq("status", "active");
 }
+
+/**
+ * Add contacts to an existing list. If that list is the recipient list of one
+ * or more ACTIVE sequences, enroll the newly-added contacts into those
+ * sequences so they start the outreach flow immediately (subject to the usual
+ * send-day / daily-cap / follow-up-priority rules).
+ *
+ * Idempotent: contacts already on the list are skipped; contacts already
+ * enrolled in a sequence are skipped; contacts at a terminal lead_stage
+ * (bounced/replied/not_a_fit/closed/booked) are NOT enrolled.
+ */
+export async function addContactsToList(
+  listId: string,
+  contactIds: string[],
+): Promise<
+  | { ok: true; added: number; enrolled: { sequence: string; count: number }[] }
+  | { ok: false; error: string }
+> {
+  if (contactIds.length === 0) return { ok: false, error: "No contacts selected" };
+
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in" };
+
+  // Verify the list belongs to the user.
+  const { data: list } = await supabase
+    .from("contact_lists")
+    .select("id, name, user_id")
+    .eq("id", listId)
+    .maybeSingle();
+  if (!list || list.user_id !== user.id) {
+    return { ok: false, error: "List not found" };
+  }
+
+  // 1. Add to list — skip ones already on it (unique(list_id, contact_id)).
+  const { data: alreadyOn } = await supabase
+    .from("list_contacts")
+    .select("contact_id")
+    .eq("list_id", listId)
+    .in("contact_id", contactIds);
+  const onListSet = new Set((alreadyOn || []).map((r: any) => r.contact_id));
+  const newToList = contactIds.filter((id) => !onListSet.has(id));
+
+  if (newToList.length > 0) {
+    const { error } = await supabase
+      .from("list_contacts")
+      .insert(newToList.map((cid) => ({ list_id: listId, contact_id: cid })));
+    if (error) return { ok: false, error: error.message };
+  }
+
+  // 2. Find ACTIVE sequences whose recipient list is this one.
+  const { data: sequences } = await supabase
+    .from("sequences")
+    .select("id, name, status")
+    .eq("user_id", user.id)
+    .eq("list_id", listId)
+    .eq("status", "active");
+
+  const enrolled: { sequence: string; count: number }[] = [];
+
+  for (const seq of sequences || []) {
+    // First step
+    const { data: firstStep } = await supabase
+      .from("sequence_steps")
+      .select("id")
+      .eq("sequence_id", seq.id)
+      .order("step_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!firstStep) continue;
+
+    // Already enrolled?
+    const { data: existingEnr } = await supabase
+      .from("enrollments")
+      .select("contact_id")
+      .eq("sequence_id", seq.id)
+      .in("contact_id", contactIds);
+    const enrolledSet = new Set((existingEnr || []).map((e: any) => e.contact_id));
+
+    // Skip terminal-stage contacts (don't enroll someone already disqualified).
+    const { data: stageRows } = await supabase
+      .from("contacts")
+      .select("id, lead_stage")
+      .in("id", contactIds);
+    const terminalSet = new Set(
+      (stageRows || [])
+        .filter((c: any) => TERMINAL_STAGES.includes(c.lead_stage))
+        .map((c: any) => c.id),
+    );
+
+    const now = new Date().toISOString();
+    const toEnroll = contactIds.filter(
+      (id) => !enrolledSet.has(id) && !terminalSet.has(id),
+    );
+    if (toEnroll.length === 0) continue;
+
+    const { data: inserted, error } = await supabase
+      .from("enrollments")
+      .insert(
+        toEnroll.map((cid) => ({
+          sequence_id: seq.id,
+          contact_id: cid,
+          current_step_id: firstStep.id,
+          status: "active",
+          next_run_at: now,
+          enrolled_at: now,
+        })),
+      )
+      .select("id");
+    if (error) return { ok: false, error: `Enrolling into "${seq.name}": ${error.message}` };
+    enrolled.push({ sequence: seq.name, count: inserted?.length || 0 });
+  }
+
+  revalidatePath("/contacts");
+  revalidatePath("/sequences");
+  return { ok: true, added: newToList.length, enrolled };
+}

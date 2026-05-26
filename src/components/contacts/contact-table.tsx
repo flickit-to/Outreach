@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LEAD_STAGES } from "@/lib/constants";
+import { addContactsToList } from "@/app/(dashboard)/contacts/actions";
 
 // Column definition
 interface ColumnDef {
@@ -95,7 +96,15 @@ function getUniqueValues(contacts: Contact[], key: string): string[] {
   return Array.from(values).sort();
 }
 
-export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; allTags?: Tag[] }) {
+export function ContactTable({
+  contacts,
+  allTags = [],
+  lists = [],
+}: {
+  contacts: Contact[];
+  allTags?: Tag[];
+  lists?: { id: string; name: string }[];
+}) {
   const tagColorByName = new Map(allTags.map((t) => [t.name, t.color]));
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
@@ -105,6 +114,9 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
   const [deleting, setDeleting] = useState(false);
   const [showSaveList, setShowSaveList] = useState(false);
   const [listName, setListName] = useState("");
+  const [showAddToList, setShowAddToList] = useState(false);
+  const [addToListId, setAddToListId] = useState("");
+  const [addingToList, setAddingToList] = useState(false);
 
   // Sort state
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -385,6 +397,17 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
               <ListPlus className="h-3 w-3 mr-1" />
               Save as List ({selected.size})
             </Button>
+            {lists.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => { setAddToListId(lists[0].id); setShowAddToList(true); }}
+              >
+                <ListPlus className="h-3 w-3 mr-1" />
+                Add to List ({selected.size})
+              </Button>
+            )}
             <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkDelete(true)}>
               <Trash2 className="h-3 w-3 mr-1" />
               Delete {selected.size}
@@ -665,6 +688,61 @@ export function ContactTable({ contacts, allTags = [] }: { contacts: Contact[]; 
               }}
             >
               Create List
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add to existing List dialog */}
+      <Dialog open={showAddToList} onOpenChange={() => setShowAddToList(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add {selected.size} Contacts to a List</DialogTitle>
+            <DialogDescription>
+              If the list is the recipient of an active sequence, the new
+              contacts will be enrolled and start the outreach automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Label htmlFor="add-to-list">List</Label>
+            <select
+              id="add-to-list"
+              value={addToListId}
+              onChange={(e) => setAddToListId(e.target.value)}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            >
+              {lists.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddToList(false)} disabled={addingToList}>
+              Cancel
+            </Button>
+            <Button
+              disabled={addingToList || !addToListId}
+              onClick={async () => {
+                setAddingToList(true);
+                const r = await addContactsToList(addToListId, Array.from(selected));
+                setAddingToList(false);
+                if (!r.ok) {
+                  toast({ title: "Failed", description: r.error, variant: "destructive" });
+                  return;
+                }
+                const enrolledMsg = r.enrolled.length
+                  ? " · " + r.enrolled.map((e) => `enrolled ${e.count} in "${e.sequence}"`).join(", ")
+                  : "";
+                toast({
+                  title: `${r.added} added to list`,
+                  description: `${r.added} new contact(s) added${enrolledMsg}`,
+                });
+                setShowAddToList(false);
+                setSelected(new Set());
+                router.refresh();
+              }}
+            >
+              {addingToList ? "Adding…" : "Add to List"}
             </Button>
           </DialogFooter>
         </DialogContent>
