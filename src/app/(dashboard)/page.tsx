@@ -29,11 +29,39 @@ export default async function DashboardPage() {
     .from("sends")
     .select("status, sent_at, opened_at, contact_id, sender_email_id, from_email_address");
 
-  // Fetch sender emails for performance card
+  // Fetch sender emails for performance card (with daily_limit)
   const { data: dashboardSenderEmails } = await supabase
     .from("sender_emails")
-    .select("id, email, name")
+    .select("id, email, name, daily_limit")
     .order("created_at");
+
+  // Sticky-locked contact counts per sender (= contacts.assigned_sender_id)
+  const stickyByIdMap = new Map<string, number>();
+  {
+    const { data: stickyRows } = await supabase
+      .from("contacts")
+      .select("assigned_sender_id")
+      .not("assigned_sender_id", "is", null);
+    for (const r of stickyRows || []) {
+      const id = (r as any).assigned_sender_id as string;
+      stickyByIdMap.set(id, (stickyByIdMap.get(id) || 0) + 1);
+    }
+  }
+
+  // Sends in the last 7 days per sender
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const sentLast7dById = new Map<string, number>();
+  {
+    const { data: recent } = await supabase
+      .from("sends")
+      .select("sender_email_id")
+      .gte("sent_at", sevenDaysAgo)
+      .neq("status", "failed");
+    for (const r of recent || []) {
+      const id = ((r as any).sender_email_id as string) || "default";
+      sentLast7dById.set(id, (sentLast7dById.get(id) || 0) + 1);
+    }
+  }
 
   const totalSent = allSends?.filter((s) => !["pending", "failed"].includes(s.status)).length || 0;
   const totalDelivered = allSends?.filter((s) => ["delivered", "opened", "clicked", "replied"].includes(s.status)).length || 0;
@@ -249,14 +277,20 @@ export default async function DashboardPage() {
     if (s.status === "clicked") row.clicked++;
     if (s.status === "bounced") row.bounced++;
   }
-  const senderRows: SenderRow[] = Array.from(senderMap.values())
-    .map((r) => ({
-      ...r,
-      openRate: r.sent > 0 ? Math.round((r.opened / r.sent) * 100) : 0,
-      clickRate: r.sent > 0 ? Math.round((r.clicked / r.sent) * 100) : 0,
-      bounceRate: r.sent > 0 ? Math.round((r.bounced / r.sent) * 100) : 0,
-    }))
-    .sort((a, b) => b.sent - a.sent);
+  const senderRows: SenderRow[] = Array.from(senderMap.entries())
+    .map(([sid, r]) => {
+      const senderInfo = senderLookup.get(sid) as any;
+      return {
+        ...r,
+        openRate: r.sent > 0 ? Math.round((r.opened / r.sent) * 100) : 0,
+        clickRate: r.sent > 0 ? Math.round((r.clicked / r.sent) * 100) : 0,
+        bounceRate: r.sent > 0 ? Math.round((r.bounced / r.sent) * 100) : 0,
+        stickyLocked: stickyByIdMap.get(sid) ?? 0,
+        sent7d: sentLast7dById.get(sid) ?? 0,
+        dailyLimit: senderInfo?.daily_limit ?? undefined,
+      };
+    })
+    .sort((a, b) => (b.stickyLocked ?? 0) - (a.stickyLocked ?? 0) || b.sent - a.sent);
 
   // Upcoming campaigns
   const { data: upcoming } = await supabase

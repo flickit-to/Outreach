@@ -3,10 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { ContactForm } from "@/components/contacts/contact-form";
 import { ContactStatusBadge } from "@/components/contacts/contact-status-badge";
 import { LeadStageBadge } from "@/components/contacts/lead-stage-badge";
-import { ActivityTimeline } from "@/components/contacts/activity-timeline";
+import { EmailHistory, type EmailHistoryItem } from "@/components/contacts/email-history";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Contact, ContactActivity } from "@/lib/types";
+import type { Contact } from "@/lib/types";
 
 export default async function ContactDetailPage({
   params,
@@ -34,54 +34,54 @@ export default async function ContactDetailPage({
     .eq("user_id", user!.id)
     .order("name");
 
-  // Fetch activity: events with send and campaign info
+  // Fetch sends + events + the source (sequence step or campaign) so we can
+  // show subject, body, and from-address per email.
   const { data: sends } = await supabase
     .from("sends")
-    .select(`
-      *,
-      events(*),
-      campaigns:campaign_id(*)
-    `)
+    .select(
+      `*,
+       events(*),
+       campaigns:campaign_id(name, subject, body),
+       sequence_step:sequence_step_id(subject, body, sequences:sequence_id(name))`,
+    )
     .eq("contact_id", params.id)
     .order("created_at", { ascending: false });
 
-  // Flatten events into timeline
-  const activities: ContactActivity[] = [];
-  if (sends) {
-    for (const send of sends) {
-      const events = (send as any).events || [];
-      const campaign = (send as any).campaigns;
-      for (const event of events) {
-        activities.push({
-          event,
-          send: {
-            id: send.id,
-            campaign_id: send.campaign_id,
-            contact_id: send.contact_id,
-            resend_id: send.resend_id,
-            status: send.status,
-            sent_at: send.sent_at,
-            delivered_at: send.delivered_at,
-            opened_at: send.opened_at,
-            clicked_at: send.clicked_at,
-            bounced_at: send.bounced_at,
-            replied_at: send.replied_at,
-            variant: send.variant || "A",
-            message_id: send.message_id || null,
-            sender_email_id: send.sender_email_id || null,
-            from_email_address: send.from_email_address || null,
-            created_at: send.created_at,
-          },
-          campaign,
-        });
-      }
+  const historyItems: EmailHistoryItem[] = (sends || []).map((send: any) => {
+    const step = send.sequence_step;
+    const campaign = send.campaigns;
+    let source: EmailHistoryItem["source"];
+    if (step) {
+      source = { kind: "sequence", name: step.sequences?.name ?? null };
+    } else if (campaign) {
+      source = { kind: "campaign", name: campaign.name ?? null };
+    } else {
+      source = { kind: "unknown" };
     }
-  }
-  activities.sort(
-    (a, b) =>
-      new Date(b.event.created_at).getTime() -
-      new Date(a.event.created_at).getTime()
-  );
+    const subject = step?.subject ?? campaign?.subject ?? null;
+    const body = step?.body ?? campaign?.body ?? null;
+    const events = (send.events || [])
+      .slice()
+      .sort(
+        (a: any, b: any) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
+    return {
+      id: send.id,
+      subject,
+      body,
+      from_email_address: send.from_email_address,
+      status: send.status,
+      sent_at: send.sent_at,
+      delivered_at: send.delivered_at,
+      opened_at: send.opened_at,
+      clicked_at: send.clicked_at,
+      replied_at: send.replied_at,
+      bounced_at: send.bounced_at,
+      source,
+      events,
+    };
+  });
 
   const totalSends = sends?.length || 0;
   const openCount = sends?.filter(
@@ -175,13 +175,13 @@ export default async function ContactDetailPage({
       {/* Edit Form */}
       <ContactForm contact={contact as Contact} userId={user!.id} allTags={(allTags as any) || []} />
 
-      {/* Activity Timeline */}
+      {/* Email history */}
       <Card>
         <CardHeader>
-          <CardTitle>Activity Timeline</CardTitle>
+          <CardTitle>Email history ({historyItems.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActivityTimeline activities={activities} />
+          <EmailHistory items={historyItems} />
         </CardContent>
       </Card>
     </div>

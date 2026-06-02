@@ -32,15 +32,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "No enrollments due", processed: 0 });
   }
 
-  // Priority sort: higher step_order first (follow-ups beat new outreach),
-  // then older next_run_at first. Null step_order (homeless enrollments)
-  // ranks last — they'll noop in the tick anyway.
-  const sorted = [...due].sort((a: any, b: any) => {
-    const aOrder = a.step?.step_order ?? 0;
-    const bOrder = b.step?.step_order ?? 0;
-    if (aOrder !== bOrder) return bOrder - aOrder;
-    return (a.next_run_at || "").localeCompare(b.next_run_at || "");
-  });
+  // Interleave follow-ups with new outreach so neither queue starves the
+  // other. Bucket by step_order (>1 = follow-up, <=1 = new outreach), sort
+  // each bucket oldest-first, then zip them: F, N, F, N, …
+  // When one bucket runs out, the other drains the rest of the batch.
+  const byOrder = (e: any) => e.step?.step_order ?? 0;
+  const byNextRun = (a: any, b: any) =>
+    (a.next_run_at || "").localeCompare(b.next_run_at || "");
+  const followups = due.filter((e) => byOrder(e) > 1).sort(byNextRun);
+  const newOutreach = due.filter((e) => byOrder(e) <= 1).sort(byNextRun);
+  const sorted: typeof due = [];
+  const longer = Math.max(followups.length, newOutreach.length);
+  for (let i = 0; i < longer; i++) {
+    if (i < followups.length) sorted.push(followups[i]);
+    if (i < newOutreach.length) sorted.push(newOutreach[i]);
+  }
 
   const tally: Record<string, number> = {};
   for (const e of sorted) {
