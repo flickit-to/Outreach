@@ -30,7 +30,7 @@ async function recordOpen(activityId: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const { data: row } = await admin
       .from("activities")
-      .select("id, opened_at, status, open_count")
+      .select("id, contact_id, opened_at, status, open_count")
       .eq("id", activityId)
       .maybeSingle();
     if (!row) return;
@@ -41,6 +41,15 @@ async function recordOpen(activityId: string): Promise<void> {
     if (!row.opened_at) updates.opened_at = nowIso;
     if (["sent", "delivered"].includes(row.status)) updates.status = "opened";
     await admin.from("activities").update(updates).eq("id", activityId);
+
+    // Forward-only bump on the contact's overall status.
+    if (row.contact_id) {
+      await admin
+        .from("contacts")
+        .update({ status: "opened" })
+        .eq("id", row.contact_id)
+        .in("status", ["not_contacted", "sent", "delivered", "opened"]);
+    }
   } catch (e) {
     // Never throw — pixel must still return.
     console.error(`recordOpen failed for ${activityId}:`, e);

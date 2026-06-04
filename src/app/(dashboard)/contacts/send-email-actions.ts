@@ -168,6 +168,14 @@ export async function sendEmailFromOutlook(args: {
     .eq("id", contact.id)
     .eq("lead_stage", "new_lead");
 
+  // Advance contacts.status forward from not_contacted → sent. Forward-only:
+  // never overwrite a higher state like delivered/opened/clicked/replied.
+  await admin
+    .from("contacts")
+    .update({ status: "sent" })
+    .eq("id", contact.id)
+    .in("status", ["not_contacted", "sent"]);
+
   revalidatePath(`/contacts/${contact.id}`);
   revalidatePath("/contacts");
   return {

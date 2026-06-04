@@ -29,7 +29,7 @@ async function recordClick(activityId: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const { data: row } = await admin
       .from("activities")
-      .select("id, clicked_at, opened_at, status, click_count")
+      .select("id, contact_id, clicked_at, opened_at, status, click_count")
       .eq("id", activityId)
       .maybeSingle();
     if (!row) return;
@@ -42,6 +42,15 @@ async function recordClick(activityId: string): Promise<void> {
       updates.status = "clicked";
     }
     await admin.from("activities").update(updates).eq("id", activityId);
+
+    // Forward-only bump on the contact's overall status.
+    if (row.contact_id) {
+      await admin
+        .from("contacts")
+        .update({ status: "clicked" })
+        .eq("id", row.contact_id)
+        .in("status", ["not_contacted", "sent", "delivered", "opened", "clicked"]);
+    }
   } catch (e) {
     // Never throw — redirect must still happen.
     console.error(`recordClick failed for ${activityId}:`, e);
