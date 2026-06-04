@@ -16,6 +16,8 @@ export const SCOPES = [
   "User.Read",
   "Mail.Read",
   "Mail.Read.Shared",
+  "Mail.Send",
+  "Mail.Send.Shared",
 ];
 
 export function getAuthorizeUrl(state: string, redirectUri: string): string {
