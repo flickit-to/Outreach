@@ -5,10 +5,31 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshAccessToken, sendMail } from "@/lib/microsoft/graph";
 import { buildTrackedHtml } from "@/lib/microsoft/compose";
+import { extractCompanyFromEmail } from "@/lib/contacts/extract";
 
 export type SendEmailResult =
-  | { ok: true; activityId: string; mailbox: string }
+  | { ok: true; activityId: string; mailbox: string; contactId: string; contactCreated: boolean }
   | { ok: false; error: string };
+
+/**
+ * Parse a recipient string. Accepts:
+ *   "Ryan Sri <ryan@x.com>"  → { name: "Ryan Sri", email: "ryan@x.com" }
+ *   "ryan@x.com"             → { name: null, email: "ryan@x.com" }
+ */
+function parseRecipient(input: string): { name: string | null; email: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const m = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+  if (m) {
+    const email = m[2].trim().toLowerCase();
+    if (!email.includes("@")) return null;
+    return { name: m[1].trim().replace(/^["']|["']$/g, ""), email };
+  }
+  if (trimmed.includes("@") && !/\s/.test(trimmed)) {
+    return { name: null, email: trimmed.toLowerCase() };
+  }
+  return null;
+}
 
 export async function sendEmailFromOutlook(args: {
   contactId: string;
@@ -131,5 +152,85 @@ export async function sendEmailFromOutlook(args: {
 
   revalidatePath(`/contacts/${contact.id}`);
   revalidatePath("/contacts");
-  return { ok: true, activityId: activity.id, mailbox: conn.mailbox_address };
+  return {
+    ok: true,
+    activityId: activity.id,
+    mailbox: conn.mailbox_address,
+    contactId: contact.id,
+    contactCreated: false,
+  };
+}
+
+/**
+ * Compose-from-scratch: caller provides the recipient as a free-text string
+ * (just an email, or "Name <email@x>"). We find an existing contact by email
+ * or auto-create one (just like the Outlook sync auto-create), then delegate
+ * to sendEmailFromOutlook so the tracked-send pipeline stays single-source.
+ */
+export async function sendComposedEmail(args: {
+  to: string;
+  subject: string;
+  body: string;
+  trackOpens: boolean;
+  trackClicks: boolean;
+  connectionId?: string;
+}): Promise<SendEmailResult> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in" };
+
+  const parsed = parseRecipient(args.to);
+  if (!parsed) return { ok: false, error: "Invalid recipient address" };
+
+  const admin = createAdminClient();
+
+  // 1. Find existing contact by email (case-insensitive)
+  const { data: existing } = await admin
+    .from("contacts")
+    .select("id")
+    .eq("user_id", user.id)
+    .ilike("email", parsed.email)
+    .maybeSingle();
+
+  let contactId = existing?.id as string | undefined;
+  let contactCreated = false;
+
+  // 2. Auto-create if missing — same shape as Outlook sync's auto-create
+  if (!contactId) {
+    const [firstName, ...rest] = (parsed.name || "").trim().split(/\s+/);
+    const lastName = rest.join(" ");
+    const company = extractCompanyFromEmail(parsed.email);
+    const { data: inserted, error: insErr } = await admin
+      .from("contacts")
+      .insert({
+        user_id: user.id,
+        email: parsed.email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        company,
+        lead_stage: "email_sent",
+        tags: ["via-compose"],
+      })
+      .select("id")
+      .single();
+    if (insErr || !inserted) {
+      return { ok: false, error: insErr?.message || "Could not create contact" };
+    }
+    contactId = inserted.id;
+    contactCreated = true;
+  }
+
+  // 3. Delegate to the existing tracked-send pipeline
+  const r = await sendEmailFromOutlook({
+    contactId: contactId!,
+    subject: args.subject,
+    body: args.body,
+    trackOpens: args.trackOpens,
+    trackClicks: args.trackClicks,
+    connectionId: args.connectionId,
+  });
+  if (!r.ok) return r;
+
+  revalidatePath("/contacts");
+  return { ...r, contactCreated };
 }

@@ -8,12 +8,14 @@ import {
   Megaphone,
   Zap,
   Settings,
+  Send,
 } from "lucide-react";
 
 export const DAILY_SEND_LIMIT = 20;
 
 export const NAV_ITEMS = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Send email", href: "/compose", icon: Send },
   { label: "Contacts", href: "/contacts", icon: Users },
   { label: "Companies", href: "/companies", icon: Building2 },
   { label: "Lists", href: "/lists", icon: List },
