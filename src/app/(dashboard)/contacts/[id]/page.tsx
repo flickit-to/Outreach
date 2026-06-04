@@ -4,6 +4,7 @@ import { ContactForm } from "@/components/contacts/contact-form";
 import { ContactStatusBadge } from "@/components/contacts/contact-status-badge";
 import { LeadStageBadge } from "@/components/contacts/lead-stage-badge";
 import { EmailHistory, type EmailHistoryItem } from "@/components/contacts/email-history";
+import { SendEmailDialog } from "@/components/contacts/send-email-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Contact } from "@/lib/types";
@@ -91,17 +92,33 @@ export default async function ContactDetailPage({
     (s) => s.clicked_at || s.status === "clicked"
   ).length || 0;
 
+  // Outlook connections for the "Send email" dialog.
+  const { data: outlookConnections } = await supabase
+    .from("outlook_connections")
+    .select("id, mailbox_address")
+    .eq("user_id", user!.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-2xl font-bold privacy-blur">
-          {[(contact as Contact).first_name, (contact as Contact).last_name].filter(Boolean).join(" ") || (contact as Contact).email}
-        </h1>
-        <LeadStageBadge
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
+          <h1 className="text-2xl font-bold privacy-blur">
+            {[(contact as Contact).first_name, (contact as Contact).last_name].filter(Boolean).join(" ") || (contact as Contact).email}
+          </h1>
+          <LeadStageBadge
+            contactId={(contact as Contact).id}
+            stage={(contact as Contact).lead_stage}
+          />
+          <ContactStatusBadge status={(contact as Contact).status} />
+        </div>
+        <SendEmailDialog
           contactId={(contact as Contact).id}
-          stage={(contact as Contact).lead_stage}
+          contactEmail={(contact as Contact).email}
+          contactName={[(contact as Contact).first_name, (contact as Contact).last_name].filter(Boolean).join(" ") || undefined}
+          outlookConnections={(outlookConnections as any) || []}
         />
-        <ContactStatusBadge status={(contact as Contact).status} />
       </div>
 
       {/* Stats */}

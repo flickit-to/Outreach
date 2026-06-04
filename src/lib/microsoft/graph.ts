@@ -161,6 +161,48 @@ export async function listMessagesByCategory(
   });
 }
 
+export type GraphSendMessage = {
+  subject: string;
+  bodyHtml: string;
+  to: { address: string; name?: string }[];
+  cc?: { address: string; name?: string }[];
+  bcc?: { address: string; name?: string }[];
+  internetMessageHeaders?: { name: string; value: string }[];
+};
+
+/**
+ * Send an email via the authenticated user's Outlook mailbox.
+ * Returns nothing on success — Graph 202 Accepted has no body.
+ * On failure, throws with the upstream error text.
+ */
+export async function sendMail(accessToken: string, msg: GraphSendMessage): Promise<void> {
+  const payload = {
+    message: {
+      subject: msg.subject,
+      body: { contentType: "HTML", content: msg.bodyHtml },
+      toRecipients: msg.to.map((r) => ({ emailAddress: { address: r.address, name: r.name } })),
+      ccRecipients: (msg.cc || []).map((r) => ({ emailAddress: { address: r.address, name: r.name } })),
+      bccRecipients: (msg.bcc || []).map((r) => ({ emailAddress: { address: r.address, name: r.name } })),
+      ...(msg.internetMessageHeaders && msg.internetMessageHeaders.length > 0
+        ? { internetMessageHeaders: msg.internetMessageHeaders }
+        : {}),
+    },
+    saveToSentItems: true,
+  };
+  const res = await fetch(`${GRAPH_BASE}/me/sendMail`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Graph sendMail failed: ${res.status} ${text}`);
+  }
+}
+
 export async function listMessagesByContact(
   accessToken: string,
   options: { folder: "inbox" | "sentitems"; contactEmail: string; sinceIso: string; top?: number },
