@@ -109,6 +109,11 @@ async function captureMessage(
         const [firstName, ...rest] = (otherName || "").trim().split(/\s+/);
         const lastName = rest.join(" ");
         const company = extractCompanyFromEmail(otherEmail);
+        // Auto-create only happens from the Outreach-tagged Sent Items
+        // sweep (direction === "outbound"). Set lead_stage="email_sent" so
+        // the contact reflects "I already emailed them." Inbound-direction
+        // captures never auto-create (handled by the caller).
+        const initialStage = direction === "outbound" ? "email_sent" : "new_lead";
         const { data: inserted } = await admin
           .from("contacts")
           .insert({
@@ -117,6 +122,7 @@ async function captureMessage(
             first_name: firstName || null,
             last_name: lastName || null,
             company,
+            lead_stage: initialStage,
             tags: ["via-outlook"],
           })
           .select("id")
