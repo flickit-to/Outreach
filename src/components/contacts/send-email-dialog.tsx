@@ -18,17 +18,22 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Send } from "lucide-react";
 import { sendEmailFromOutlook } from "@/app/(dashboard)/contacts/send-email-actions";
+import { SignaturePreview } from "@/components/compose/signature-preview";
 
 export function SendEmailDialog({
   contactId,
   contactEmail,
   contactName,
   outlookConnections,
+  signatureHtml,
+  signatureImageUrl,
 }: {
   contactId: string;
   contactEmail: string;
   contactName?: string;
   outlookConnections: { id: string; mailbox_address: string }[];
+  signatureHtml: string | null;
+  signatureImageUrl: string | null;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -128,6 +133,12 @@ export function SendEmailDialog({
               rows={10}
               className="mt-1"
             />
+            {includeSignature && (
+              <SignaturePreview
+                signatureHtml={signatureHtml}
+                signatureImageUrl={signatureImageUrl}
+              />
+            )}
             <p className="text-[11px] text-muted-foreground mt-1">
               Plain text. URLs auto-link and get click-tracked.
             </p>

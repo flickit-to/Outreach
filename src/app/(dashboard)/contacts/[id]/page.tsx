@@ -100,6 +100,13 @@ export default async function ContactDetailPage({
     .eq("status", "active")
     .order("created_at", { ascending: true });
 
+  // Signature for the "Send email" dialog preview.
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("signature_html, signature_image_url")
+    .eq("user_id", user!.id)
+    .maybeSingle();
+
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -118,6 +125,8 @@ export default async function ContactDetailPage({
           contactEmail={(contact as Contact).email}
           contactName={[(contact as Contact).first_name, (contact as Contact).last_name].filter(Boolean).join(" ") || undefined}
           outlookConnections={(outlookConnections as any) || []}
+          signatureHtml={settings?.signature_html || null}
+          signatureImageUrl={settings?.signature_image_url || null}
         />
       </div>
 

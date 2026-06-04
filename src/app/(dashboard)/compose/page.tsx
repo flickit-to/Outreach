@@ -14,6 +14,12 @@ export default async function ComposePage() {
     .eq("status", "active")
     .order("created_at", { ascending: true });
 
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("signature_html, signature_image_url")
+    .eq("user_id", user!.id)
+    .maybeSingle();
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -23,7 +29,11 @@ export default async function ComposePage() {
           auto-added to your contacts if new.
         </p>
       </div>
-      <ComposeForm outlookConnections={(outlookConnections as any) || []} />
+      <ComposeForm
+        outlookConnections={(outlookConnections as any) || []}
+        signatureHtml={settings?.signature_html || null}
+        signatureImageUrl={settings?.signature_image_url || null}
+      />
     </div>
   );
 }
