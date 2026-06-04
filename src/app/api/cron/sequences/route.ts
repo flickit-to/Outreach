@@ -4,8 +4,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runEnrollmentTick } from "@/lib/engine/run-sequence-tick";
+import { syncConnection, type SyncResult } from "@/lib/microsoft/sync";
 
 const BATCH_SIZE = 100;
+// Sync 25h of Outlook (slightly more than 24h to absorb cron drift / retries).
+const OUTLOOK_SYNC_WINDOW_MS = 25 * 60 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -28,8 +31,15 @@ export async function GET(request: NextRequest) {
     .order("next_run_at", { ascending: true })
     .limit(BATCH_SIZE);
 
+  // Outlook sync runs regardless of whether there are enrollments due.
+  const outlookResults = await runOutlookSync(sb);
+
   if (!due || due.length === 0) {
-    return NextResponse.json({ message: "No enrollments due", processed: 0 });
+    return NextResponse.json({
+      message: "No enrollments due",
+      processed: 0,
+      outlook: outlookResults,
+    });
   }
 
   // Interleave follow-ups with new outreach so neither queue starves the
@@ -59,5 +69,40 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed: sorted.length, tally });
+  return NextResponse.json({ processed: sorted.length, tally, outlook: outlookResults });
+}
+
+/**
+ * Sync every active Outlook connection. Pulls the last 25 hours so a missed
+ * cron tick still catches up the next day. Errors on one mailbox don't stop
+ * the others.
+ */
+async function runOutlookSync(
+  sb: ReturnType<typeof createAdminClient>,
+): Promise<SyncResult[]> {
+  const { data: conns } = await sb
+    .from("outlook_connections")
+    .select("*")
+    .eq("status", "active");
+  if (!conns || conns.length === 0) return [];
+
+  const sinceIso = new Date(Date.now() - OUTLOOK_SYNC_WINDOW_MS).toISOString();
+  const results: SyncResult[] = [];
+  for (const c of conns) {
+    try {
+      const r = await syncConnection(sb, c as any, { sinceIso });
+      results.push(r);
+    } catch (e: any) {
+      results.push({
+        mailbox: (c as any).mailbox_address,
+        fetched_inbox: 0,
+        fetched_sent: 0,
+        activities_created: 0,
+        contacts_created: 0,
+        replies_marked: 0,
+        error: e.message,
+      });
+    }
+  }
+  return results;
 }
