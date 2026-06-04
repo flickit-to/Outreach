@@ -12,6 +12,7 @@ import {
   listMessagesByContact,
   type GraphMessage,
 } from "./graph";
+import { extractCompanyFromEmail } from "@/lib/contacts/extract";
 
 const OUTREACH_CATEGORY = "Outreach";
 
@@ -107,6 +108,7 @@ async function captureMessage(
       if (isTagged) {
         const [firstName, ...rest] = (otherName || "").trim().split(/\s+/);
         const lastName = rest.join(" ");
+        const company = extractCompanyFromEmail(otherEmail);
         const { data: inserted } = await admin
           .from("contacts")
           .insert({
@@ -114,6 +116,7 @@ async function captureMessage(
             email: otherEmail,
             first_name: firstName || null,
             last_name: lastName || null,
+            company,
             tags: ["via-outlook"],
           })
           .select("id")
