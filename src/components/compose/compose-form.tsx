@@ -23,6 +23,7 @@ export function ComposeForm({
   const [body, setBody] = useState("");
   const [trackOpens, setTrackOpens] = useState(true);
   const [trackClicks, setTrackClicks] = useState(true);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [connectionId, setConnectionId] = useState(outlookConnections[0]?.id || "");
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState<
@@ -42,6 +43,7 @@ export function ComposeForm({
       body,
       trackOpens,
       trackClicks,
+      includeSignature,
       connectionId: connectionId || undefined,
     });
     setBusy(false);
@@ -180,7 +182,7 @@ export function ComposeForm({
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-4 text-sm flex-wrap">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -198,6 +200,15 @@ export function ComposeForm({
                 className="h-4 w-4"
               />
               Track clicks
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={includeSignature}
+                onChange={(e) => setIncludeSignature(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Include signature
             </label>
           </div>
 

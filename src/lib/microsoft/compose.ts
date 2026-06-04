@@ -59,7 +59,34 @@ export function injectPixel(html: string, activityId: string, appUrl: string): s
 }
 
 /**
- * One-stop: turn user text into a tracked HTML body.
+ * Build the HTML signature block. Returns "" when nothing's configured.
+ * Mirrors the format used by the Resend-based sequence engine
+ * (lib/resend/templates.ts) so emails look consistent across send paths.
+ */
+export function buildSignatureHtml(opts: {
+  html: string | null | undefined;
+  imageUrl: string | null | undefined;
+}): string {
+  const html = (opts.html || "").trim();
+  const imageUrl = (opts.imageUrl || "").trim();
+  if (!html && !imageUrl) return "";
+  const sigLines = html
+    .split("\n")
+    .map((line) => (line.trim() ? `<div>${line}</div>` : "<br />"))
+    .join("");
+  const sigLinesWithStyledLinks = sigLines.replace(
+    /<a\s+([^>]*?)>/gi,
+    '<a style="text-decoration:underline;color:#2563eb;" $1>',
+  );
+  return `<div style="margin-top:40px;font-size:14px;color:#555;">
+${imageUrl ? `<div style="margin-bottom:10px;"><img src="${imageUrl}" alt="" width="70" height="70" style="width:70px;height:70px;object-fit:cover;display:block;border-radius:4px;margin-bottom:10px;" /></div>` : ""}
+${sigLinesWithStyledLinks}
+</div>`;
+}
+
+/**
+ * One-stop: turn user text into a tracked HTML body, with an optional
+ * signature block appended before the tracking pixel.
  */
 export function buildTrackedHtml(args: {
   plainBody: string;
@@ -67,8 +94,11 @@ export function buildTrackedHtml(args: {
   appUrl: string;
   trackOpens: boolean;
   trackClicks: boolean;
+  signature?: { html: string | null | undefined; imageUrl: string | null | undefined };
 }): string {
   let html = plainTextToHtml(args.plainBody);
+  const sig = args.signature ? buildSignatureHtml(args.signature) : "";
+  if (sig) html = `${html}${sig}`;
   if (args.trackClicks) html = rewriteLinks(html, args.activityId, args.appUrl);
   if (args.trackOpens) html = injectPixel(html, args.activityId, args.appUrl);
   return html;

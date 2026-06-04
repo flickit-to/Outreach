@@ -38,6 +38,7 @@ export async function sendEmailFromOutlook(args: {
   trackOpens: boolean;
   trackClicks: boolean;
   connectionId?: string;
+  includeSignature?: boolean;
 }): Promise<SendEmailResult> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -119,6 +120,22 @@ export async function sendEmailFromOutlook(args: {
     return { ok: false, error: insErr?.message || "Could not record activity" };
   }
 
+  // Pull signature from settings if the caller asked for it (default on).
+  let signature: { html: string | null; imageUrl: string | null } | undefined;
+  if (args.includeSignature !== false) {
+    const { data: settings } = await admin
+      .from("settings")
+      .select("signature_html, signature_image_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (settings && (settings.signature_html || settings.signature_image_url)) {
+      signature = {
+        html: settings.signature_html,
+        imageUrl: settings.signature_image_url,
+      };
+    }
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://outreach-ryan-sris-projects.vercel.app";
   const html = buildTrackedHtml({
     plainBody: args.body,
@@ -126,6 +143,7 @@ export async function sendEmailFromOutlook(args: {
     appUrl,
     trackOpens: args.trackOpens,
     trackClicks: args.trackClicks,
+    signature,
   });
 
   try {
@@ -174,6 +192,7 @@ export async function sendComposedEmail(args: {
   trackOpens: boolean;
   trackClicks: boolean;
   connectionId?: string;
+  includeSignature?: boolean;
 }): Promise<SendEmailResult> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -228,6 +247,7 @@ export async function sendComposedEmail(args: {
     trackOpens: args.trackOpens,
     trackClicks: args.trackClicks,
     connectionId: args.connectionId,
+    includeSignature: args.includeSignature,
   });
   if (!r.ok) return r;
 

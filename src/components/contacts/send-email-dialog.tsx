@@ -38,6 +38,7 @@ export function SendEmailDialog({
   const [body, setBody] = useState("");
   const [trackOpens, setTrackOpens] = useState(true);
   const [trackClicks, setTrackClicks] = useState(true);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [connectionId, setConnectionId] = useState(outlookConnections[0]?.id || "");
 
   const noConnection = outlookConnections.length === 0;
@@ -50,6 +51,7 @@ export function SendEmailDialog({
       body,
       trackOpens,
       trackClicks,
+      includeSignature,
       connectionId: connectionId || undefined,
     });
     setBusy(false);
@@ -131,7 +133,7 @@ export function SendEmailDialog({
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-4 text-sm flex-wrap">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -149,6 +151,15 @@ export function SendEmailDialog({
                 className="h-4 w-4"
               />
               Track clicks
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={includeSignature}
+                onChange={(e) => setIncludeSignature(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Include signature
             </label>
           </div>
         </div>
